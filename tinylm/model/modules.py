@@ -341,36 +341,44 @@ class Layer(nn.Module):
 
 class MobileLayer(nn.Module):
     """
-    Standard LLaMA/MobileLLM-style decoder block.
-    
-    Pre-RMSNorm
-      -> GQA attention
+    Exact Llama/MobileLLM-style decoder block.
+
+    RMSNorm
+      -> self attention
       -> residual
       -> RMSNorm
-      -> SwiGLU MLP
+      -> SwiGLU
       -> residual
+
+    If `mlp` is supplied, multiple layers may reference
+    the same MobileMLP instance. This is the only
+    P018-R1 modification in the shared variant.
     """
-    
+
     def __init__(self, cfg, mlp=None):
         super().__init__()
-        
+
         self.input_layernorm = MobileRMSNorm(
             cfg.dim,
             cfg.norm_eps,
         )
-        
+
         self.attn = MobileAttention(
             cfg,
             owns_kv=True,
         )
-        
+
         self.post_attention_layernorm = MobileRMSNorm(
             cfg.dim,
             cfg.norm_eps,
         )
-        
-        self.mlp = mlp if mlp is not None else MobileMLP(cfg)
-    
+
+        self.mlp = (
+            mlp
+            if mlp is not None
+            else MobileMLP(cfg)
+        )
+
     def forward(
         self,
         x,
@@ -379,10 +387,11 @@ class MobileLayer(nn.Module):
         sin,
         mode_p=None,
     ):
+        # Attention block
         residual = x
-        
+
         x = self.input_layernorm(x)
-        
+
         x = self.attn(
             x,
             kv,
@@ -390,15 +399,16 @@ class MobileLayer(nn.Module):
             sin,
             mode_p,
         )
-        
+
         x = residual + x
-        
+
+        # MLP block
         residual = x
-        
+
         x = self.post_attention_layernorm(x)
-        
+
         x = self.mlp(x)
-        
+
         x = residual + x
-        
+
         return x

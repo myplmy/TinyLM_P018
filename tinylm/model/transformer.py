@@ -587,141 +587,266 @@ class TiedMLPTransformer(nn.Module):
 
 
 class MobileTransformer(nn.Module):
+    """
+    MobileLLM 125M reference implementation.
+
+    Dense:
+        one independent MLP per layer.
+
+    Shared:
+        same MobileLLM block architecture, but MLP instances
+        are shared every `cfg.mlp_group` layers.
+
+    No P018-specific:
+        TLinear
+        ternary
+        CLA
+        QK-norm
+        LoRA
+        FiLM
+        factorized embedding
+    """
+
     def __init__(self, cfg: TMTConfig):
         super().__init__()
-        
+
         self.cfg = cfg
-        
+
+        # ----------------------------------------------------
+        # Input embedding
+        # ----------------------------------------------------
+
         self.emb = nn.Embedding(
             cfg.vocab_size,
             cfg.dim,
         )
-        
-        nn.init.normal_(
-            self.emb.weight,
-            std=0.02,
+
+        # MobileLLM does NOT tie input embedding and LM head.
+        self.lm_head = nn.Linear(
+            cfg.dim,
+            cfg.vocab_size,
+            bias=False,
         )
-        
-        self.mlps = nn.ModuleList()
-        
+
+        # ----------------------------------------------------
+        # MLP construction
+        # ----------------------------------------------------
+
         if cfg.tie_mlp:
-            n_mlps = cfg.n_layers // cfg.mlp_group
+            n_mlps = cfg.n_mlp_groups
         else:
             n_mlps = cfg.n_layers
-            
-        self.mlps.extend(
+
+        self.mlps = nn.ModuleList(
             MobileMLP(cfg)
             for _ in range(n_mlps)
         )
-        
-        self.layers = nn.ModuleList()
-        
+
+        # ----------------------------------------------------
+        # Decoder layers
+        # ----------------------------------------------------
+
+        layers = []
+
         for i in range(cfg.n_layers):
+
             if cfg.tie_mlp:
-                mlp = self.mlps[
-                    i // cfg.mlp_group
-                ]
+                mlp_idx = i // cfg.mlp_group
             else:
-                mlp = self.mlps[i]
-                
-            self.layers.append(
+                mlp_idx = i
+
+            layers.append(
                 MobileLayer(
                     cfg,
-                    mlp=mlp,
+                    mlp=self.mlps[mlp_idx],
                 )
             )
-            
-        self.norm_f = MobileRMSNorm(
+
+        self.layers = nn.ModuleList(layers)
+
+        # ----------------------------------------------------
+        # Final RMSNorm
+        # ----------------------------------------------------
+
+        self.norm = MobileRMSNorm(
             cfg.dim,
             cfg.norm_eps,
         )
-        
+
+        # ----------------------------------------------------
+        # RoPE
+        # ----------------------------------------------------
+
         cos, sin = build_rope(
             cfg.head_dim,
             cfg.max_seq_len,
             cfg.rope_theta,
         )
-        
+
         self.register_buffer(
             "rope_cos",
             cos,
             persistent=False,
         )
-        
+
         self.register_buffer(
             "rope_sin",
             sin,
             persistent=False,
         )
-    
+
+        # ----------------------------------------------------
+        # MobileLLM initialization
+        # ----------------------------------------------------
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        std = self.cfg.initializer_range
+
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+            )
+
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+            )
+
+        elif isinstance(module, MobileRMSNorm):
+            nn.init.ones_(module.weight)
+
     def forward(
         self,
         tokens,
-        return_aux=False,
         past_kv=None,
         use_cache=False,
+        return_aux=False,
+        mode_override=None,
     ):
+        cfg = self.cfg
+
+        B, T = tokens.shape
+
+        # ----------------------------------------------------
+        # KV cache position
+        # ----------------------------------------------------
+
+        past_len = 0
+
+        if past_kv:
+            first_key = next(iter(past_kv.values()))
+            past_len = first_key[0].shape[2]
+
+        if past_len + T > cfg.max_seq_len:
+            raise ValueError(
+                f"past_len({past_len}) + "
+                f"T({T}) > max_seq_len({cfg.max_seq_len})"
+            )
+
+        # ----------------------------------------------------
+        # Embedding
+        # ----------------------------------------------------
+
         x = self.emb(tokens)
-        
-        B, T, _ = x.shape
-        
-        cos = self.rope_cos[:T]
-        sin = self.rope_sin[:T]
-        
+
+        cos = self.rope_cos[
+            past_len:past_len + T
+        ]
+
+        sin = self.rope_sin[
+            past_len:past_len + T
+        ]
+
+        # ----------------------------------------------------
+        # Transformer blocks
+        # ----------------------------------------------------
+
         kv_bank = {}
-        
+
         for i, layer in enumerate(self.layers):
-            if past_kv is not None and i in past_kv:
-                k_old, v_old = past_kv[i]
-                
-                k_new, v_new = layer.attn.compute_kv(
+
+            if i in kv_bank:
+                kv = kv_bank[i]
+
+            else:
+                if past_kv is not None and i in past_kv:
+                    old_k, old_v = past_kv[i]
+                else:
+                    old_k = None
+                    old_v = None
+
+                k, v = layer.attn.compute_kv(
                     layer.input_layernorm(x),
                     cos,
                     sin,
                 )
-                
-                kv = (
-                    torch.cat([k_old, k_new], dim=2),
-                    torch.cat([v_old, v_new], dim=2),
+
+                if old_k is not None:
+                    k = torch.cat(
+                        [old_k, k],
+                        dim=2,
+                    )
+                    v = torch.cat(
+                        [old_v, v],
+                        dim=2,
+                    )
+
+                kv = (k, v)
+
+                kv_bank[i] = kv
+
+            if cfg.grad_checkpoint and self.training:
+                x = checkpoint(
+                    lambda inp, L=layer, K=kv:
+                        L(
+                            inp,
+                            K,
+                            cos,
+                            sin,
+                            None,
+                        ),
+                    x,
+                    use_reentrant=False,
                 )
             else:
-                kv = layer.attn.compute_kv(
-                    layer.input_layernorm(x),
+                x = layer(
+                    x,
+                    kv,
                     cos,
                     sin,
+                    None,
                 )
-                
-            kv_bank[i] = kv
-            
-            x = layer(
-                x,
-                kv,
-                cos,
-                sin,
-                None,
-            )
-            
-        x = self.norm_f(x)
-        
-        logits = F.linear(
-            x,
-            self.emb.weight,
-        )
-        
+
+        # ----------------------------------------------------
+        # Final norm
+        # ----------------------------------------------------
+
+        x = self.norm(x)
+
+        # ----------------------------------------------------
+        # Untied LM head
+        # ----------------------------------------------------
+
+        logits = self.lm_head(x)
+
         if use_cache:
             if return_aux:
                 return logits, kv_bank, None
+
             return logits, kv_bank
-            
+
         if return_aux:
-            return logits, {
-                "router_loss": torch.zeros(
-                    (),
-                    device=x.device,
-                ),
-                "mode_usage": None,
-            }
-            
+            return logits, None
+
         return logits
 
 

@@ -54,8 +54,14 @@ class TMTConfig:
     max_seq_len: int = 2048
     rope_theta: float = 10000.0
     norm_eps: float = 1e-5
+
+    # --- initialization / output head ---
+    initializer_range: float = 0.02
+    tie_word_embeddings: bool = True
+
     grad_checkpoint: bool = False
     tie_mlp: bool = True              # False면 dense 기준선
+
 
     # ── P031 단계0 : 추론 시 middle 블록 반복(깊이 외삽). **추론 전용, 학습 경로 무영향** ──
     #   infer_repeat = middle 층 통과 횟수의 배수. 1.0 이면 학습된 그대로(기본).
@@ -83,7 +89,7 @@ class TMTConfig:
         assert self.dim % self.n_q_heads == 0
         assert self.n_q_heads % self.n_kv_heads == 0
         assert self.dim % self.micro_group == 0 and self.ffn_dim % self.micro_group == 0
-        assert self.n_middle % self.mlp_group == 0
+        assert self.mlp_group >= 1
         if self.sparse34:
             assert self.micro_group % 4 == 0, "sparse34 는 group 이 4의 배수여야 함(3:4 블록)"
         assert self.repeat_where in ("front", "back", "even"), \
@@ -97,7 +103,11 @@ class TMTConfig:
     @property
     def n_layers(self): return self.n_prelude + self.n_middle + self.n_coda
     @property
-    def n_mlp_groups(self): return self.n_middle // self.mlp_group if self.tie_mlp else self.n_middle
+    def n_mlp_groups(self):
+        if not self.tie_mlp:
+            return self.n_middle
+    
+        return (self.n_middle + self.mlp_group - 1) // self.mlp_group
 
 
 def dense_baseline(cfg: TMTConfig) -> TMTConfig:
@@ -122,66 +132,99 @@ def _m100(seq, ckpt):
                      mlp_group=4, cla_group=2, n_modes=1, mode_rank=0,
                      micro_group=128, max_seq_len=seq, grad_checkpoint=ckpt)
 
-def _mobile100(seq, ckpt):
+def _mobile125(seq, ckpt):
     """
-    MobileLLM-style 100M-class reference.
+    MobileLLM 125M reference architecture.
 
-    P018과 tensor shape / depth는 동일하게 유지하고,
-    MobileLLM의 transformer block semantics만 사용한다.
+    Based on:
+      facebookresearch/MobileLLM/configs/125M/config.json
 
-    - SwiGLU
-    - GQA
-    - RoPE
-    - RMSNorm
-    - standard residual block
-    - no CLA
-    - no QK norm
-    - no TLinear / ternary
-    - no P018 FiLM / LoRA
+    Architecture:
+      vocab_size          = 32000
+      hidden_size         = 576
+      intermediate_size   = 1536
+      num_hidden_layers   = 30
+      num_attention_heads = 9
+      num_kv_heads        = 3
+      head_dim            = 64
+      RMSNorm
+      RoPE
+      SwiGLU
+      GQA
+      bias=False
+      initializer_range=0.02
+      tie_word_embeddings=False
+
+    P018-specific mechanisms are disabled:
+      - ternary / TLinear
+      - CLA
+      - QK norm
+      - LoRA
+      - FiLM
+      - factorized embedding
     """
+
     return TMTConfig(
         model_family="mobile",
 
-        vocab_size=VOCAB,
-        dim=768,
-        ffn_dim=2048,
-        n_q_heads=12,
+        # MobileLLM 125M config.json
+        vocab_size=32000,
+        dim=576,
+        ffn_dim=1536,
+        n_q_heads=9,
         n_kv_heads=3,
 
-        # Mobile reference는 factorized embedding을 사용하지 않는다.
+        # No factorized embedding.
         emb_rank=0,
 
-        # P018의 prelude/middle/coda 개념을 Mobile에서는 사용하지 않는다.
-        # transformer.py에서 n_layers 전체를 일반 decoder layer로 구성한다.
+        # Exactly 30 decoder layers.
         n_prelude=0,
-        n_middle=20,
+        n_middle=30,
         n_coda=0,
 
-        # Dense 기준
+        # Dense reference.
         mlp_group=1,
 
-        # Mobile은 CLA를 사용하지 않는다.
+        # MobileLLM does not use P018 CLA.
         cla_group=1,
 
         n_modes=1,
         mode_rank=0,
 
-        # Mobile baseline에서는 P018 ternary를 사용하지 않는다.
-        micro_group=128,
+        # P018 ternary path disabled.
+        micro_group=1,
+        twn_thr_ratio=0.7,
+        ste_clip=2.5,
+        quant_anneal=1.0,
+        quantize_embedding=False,
         sparse34=False,
+
+        # No P018 MLP adaptation.
         mlp_lora_rank=0,
+        mlp_lora_bits=2,
         mlp_film=False,
 
-        # Mobile attention
+        # Mobile attention implementation.
         attn_kind="mobile",
 
         center_weights=False,
         use_ternary_kernel=False,
         ternary_kernel_triton=False,
 
-        max_seq_len=seq,
+        max_seq_len=2048,
+        rope_theta=10000.0,
+        norm_eps=1e-5,
+
+        # MobileLLM initialization.
+        initializer_range=0.02,
+
+        # MobileLLM config:
+        # tie_word_embeddings = false
+        tie_word_embeddings=False,
+
         grad_checkpoint=ckpt,
 
+        # This field controls P018 MLP sharing.
         tie_mlp=False,
     )
 
@@ -262,7 +305,7 @@ def _m100R1q(seq, ckpt):
 
 
 PRESETS = {"tiny": _tiny, "m100": _m100, "m100d": _m100d,
-           "mobile100": _mobile100,
+           "mobile125": _mobile125,
            "m100R1a": _m100R1a, "m100R1c": _m100R1c,
            "m100R1p": _m100R1p, "m100R1q": _m100R1q}
 
@@ -293,6 +336,7 @@ def build_config(
             return dataclasses.replace(
                 cfg,
                 tie_mlp=True,
+                mlp_group=6,
             )
 
         raise ValueError(
