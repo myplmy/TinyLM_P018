@@ -12,7 +12,7 @@ from torch.utils.checkpoint import checkpoint
 
 from ..config import TMTConfig, dense_baseline  # noqa: F401  (재export)
 from .ternary import TLinear, ternary  # noqa: F401
-from .modules import RMSNorm, Attention, MLP, Layer, build_rope, apply_rope  # noqa: F401
+from .modules import RMSNorm, Attention, MLP, Layer, MobileRMSNorm, MobileAttention, MobileMLP, MobileLayer, build_rope, apply_rope # noqa: F401
 from .ternary import LoRA  # noqa: F401
 
 
@@ -584,3 +584,149 @@ class TiedMLPTransformer(nn.Module):
         A(f"    1024 ctx {kv_kb*1024/1024:.1f} MB   2048 ctx {kv_kb*2048/1024:.1f} MB")
         A("=" * 72)
         return "\n".join(L)
+
+
+class MobileTransformer(nn.Module):
+    def __init__(self, cfg: TMTConfig):
+        super().__init__()
+        
+        self.cfg = cfg
+        
+        self.emb = nn.Embedding(
+            cfg.vocab_size,
+            cfg.dim,
+        )
+        
+        nn.init.normal_(
+            self.emb.weight,
+            std=0.02,
+        )
+        
+        self.mlps = nn.ModuleList()
+        
+        if cfg.tie_mlp:
+            n_mlps = cfg.n_layers // cfg.mlp_group
+        else:
+            n_mlps = cfg.n_layers
+            
+        self.mlps.extend(
+            MobileMLP(cfg)
+            for _ in range(n_mlps)
+        )
+        
+        self.layers = nn.ModuleList()
+        
+        for i in range(cfg.n_layers):
+            if cfg.tie_mlp:
+                mlp = self.mlps[
+                    i // cfg.mlp_group
+                ]
+            else:
+                mlp = self.mlps[i]
+                
+            self.layers.append(
+                MobileLayer(
+                    cfg,
+                    mlp=mlp,
+                )
+            )
+            
+        self.norm_f = MobileRMSNorm(
+            cfg.dim,
+            cfg.norm_eps,
+        )
+        
+        cos, sin = build_rope(
+            cfg.head_dim,
+            cfg.max_seq_len,
+            cfg.rope_theta,
+        )
+        
+        self.register_buffer(
+            "rope_cos",
+            cos,
+            persistent=False,
+        )
+        
+        self.register_buffer(
+            "rope_sin",
+            sin,
+            persistent=False,
+        )
+    
+    def forward(
+        self,
+        tokens,
+        return_aux=False,
+        past_kv=None,
+        use_cache=False,
+    ):
+        x = self.emb(tokens)
+        
+        B, T, _ = x.shape
+        
+        cos = self.rope_cos[:T]
+        sin = self.rope_sin[:T]
+        
+        kv_bank = {}
+        
+        for i, layer in enumerate(self.layers):
+            if past_kv is not None and i in past_kv:
+                k_old, v_old = past_kv[i]
+                
+                k_new, v_new = layer.attn.compute_kv(
+                    layer.input_layernorm(x),
+                    cos,
+                    sin,
+                )
+                
+                kv = (
+                    torch.cat([k_old, k_new], dim=2),
+                    torch.cat([v_old, v_new], dim=2),
+                )
+            else:
+                kv = layer.attn.compute_kv(
+                    layer.input_layernorm(x),
+                    cos,
+                    sin,
+                )
+                
+            kv_bank[i] = kv
+            
+            x = layer(
+                x,
+                kv,
+                cos,
+                sin,
+                None,
+            )
+            
+        x = self.norm_f(x)
+        
+        logits = F.linear(
+            x,
+            self.emb.weight,
+        )
+        
+        if use_cache:
+            if return_aux:
+                return logits, kv_bank, None
+            return logits, kv_bank
+            
+        if return_aux:
+            return logits, {
+                "router_loss": torch.zeros(
+                    (),
+                    device=x.device,
+                ),
+                "mode_usage": None,
+            }
+            
+        return logits
+
+
+def build_model(cfg: TMTConfig):
+    if cfg.model_family == "mobile":
+        return MobileTransformer(cfg)
+
+    return TiedMLPTransformer(cfg)

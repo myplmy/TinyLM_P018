@@ -1,0 +1,3 @@
+[submodule "MobileLLM"]
+	path = MobileLLM
+	url = https://github.com/facebookresearch/MobileLLM.git

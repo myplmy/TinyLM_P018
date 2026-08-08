@@ -36,6 +36,21 @@ class RMSNorm(nn.Module):
         return x * torch.rsqrt(x.float().pow(2).mean(-1, keepdim=True) + self.eps).to(x.dtype)
 
 
+class MobileRMSNorm(nn.Module):
+    def __init__(self, dim, eps=1e-5):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+    
+    def forward(self, x):
+        input_dtype = x.dtype
+        x = x.float()
+        x = x * torch.rsqrt(
+            x.pow(2).mean(-1, keepdim=True) + self.eps
+        )
+        return (self.weight * x).to(input_dtype)
+
+
 def build_rope(hd, max_len, theta, device=None):
     inv = 1.0 / (theta ** (torch.arange(0, hd, 2, device=device).float() / hd))
     f = torch.outer(torch.arange(max_len, device=device).float(), inv)
@@ -98,6 +113,130 @@ class Attention(nn.Module):
         return self.o_proj(o.transpose(1, 2).contiguous().view(B, T, c.dim), mode_p)
 
 
+@register_attention("mobile")
+class MobileAttention(nn.Module):
+    """
+    MobileLLM-style attention.
+
+    - standard Q/K/V/O projections
+    - GQA
+    - RoPE
+    - no CLA
+    - no QK-norm
+    - no ternary
+    """
+
+    def __init__(self, cfg, owns_kv=True):
+        super().__init__()
+
+        self.cfg = cfg
+
+        self.q_proj = nn.Linear(
+            cfg.dim,
+            cfg.dim,
+            bias=False,
+        )
+
+        self.k_proj = nn.Linear(
+            cfg.dim,
+            cfg.kv_dim,
+            bias=False,
+        )
+
+        self.v_proj = nn.Linear(
+            cfg.dim,
+            cfg.kv_dim,
+            bias=False,
+        )
+
+        self.o_proj = nn.Linear(
+            cfg.dim,
+            cfg.dim,
+            bias=False,
+        )
+
+    def compute_kv(self, x, cos, sin):
+        B, T, _ = x.shape
+        c = self.cfg
+
+        k = self.k_proj(x).view(
+            B,
+            T,
+            c.n_kv_heads,
+            c.head_dim,
+        ).transpose(1, 2)
+
+        v = self.v_proj(x).view(
+            B,
+            T,
+            c.n_kv_heads,
+            c.head_dim,
+        ).transpose(1, 2)
+
+        k = apply_rope(k, cos, sin)
+
+        return k, v
+
+    def forward(self, x, kv, cos, sin, mode_p=None):
+        B, T, _ = x.shape
+        c = self.cfg
+        
+        q = self.q_proj(x).view(
+            B,
+            T,
+            c.n_q_heads,
+            c.head_dim,
+        ).transpose(1, 2)
+        
+        q = apply_rope(q, cos, sin)
+        
+        k, v = kv
+        
+        n_rep = c.n_q_heads // c.n_kv_heads
+        
+        if n_rep > 1:
+            k = k.repeat_interleave(
+                n_rep,
+                dim=1,
+            )
+            v = v.repeat_interleave(
+                n_rep,
+                dim=1,
+            )
+        
+        q_len = q.shape[2]
+        kv_len = k.shape[2]
+        
+        if q_len == kv_len:
+            o = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                is_causal=True,
+            )
+        else:
+            past_len = kv_len - q_len
+            
+            mask = torch.ones(
+                q_len,
+                kv_len,
+                dtype=torch.bool,
+                device=q.device,
+            ).tril(past_len)
+            
+            o = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=mask,
+            )
+        
+        o = o.transpose(1, 2).contiguous()
+        o = o.view(B, T, c.dim)
+        
+        return self.o_proj(o)
+
+
 class MLP(nn.Module):
     """중간층에서는 mlp_group개 층이 이 인스턴스 하나를 공유한다."""
 
@@ -121,6 +260,42 @@ class MLP(nn.Module):
         if lora is not None:
             d = d + lora[2](h)
         return d
+
+
+class MobileMLP(nn.Module):
+    """
+    MobileLLM/LLaMA-style SwiGLU MLP.
+    
+    FP linear only.
+    No ternary / TLinear / LoRA / FiLM.
+    """
+    
+    def __init__(self, cfg):
+        super().__init__()
+        
+        self.gate_proj = nn.Linear(
+            cfg.dim,
+            cfg.ffn_dim,
+            bias=False,
+        )
+        
+        self.up_proj = nn.Linear(
+            cfg.dim,
+            cfg.ffn_dim,
+            bias=False,
+        )
+        
+        self.down_proj = nn.Linear(
+            cfg.ffn_dim,
+            cfg.dim,
+            bias=False,
+        )
+    
+    def forward(self, x):
+        return self.down_proj(
+            F.silu(self.gate_proj(x))
+            * self.up_proj(x)
+        )
 
 
 class Layer(nn.Module):
@@ -161,4 +336,69 @@ class Layer(nn.Module):
         lora = (self.lora_gate, self.lora_up, self.lora_down) if self.has_lora else None
         film = (self.film_scale, self.film_shift) if self.has_film else None
         x = x + self.gates[1] * self.mlp[0](self.ln2(x) * m + self.m_shift, mode_p, lora, film)
+        return x
+
+
+class MobileLayer(nn.Module):
+    """
+    Standard LLaMA/MobileLLM-style decoder block.
+    
+    Pre-RMSNorm
+      -> GQA attention
+      -> residual
+      -> RMSNorm
+      -> SwiGLU MLP
+      -> residual
+    """
+    
+    def __init__(self, cfg, mlp=None):
+        super().__init__()
+        
+        self.input_layernorm = MobileRMSNorm(
+            cfg.dim,
+            cfg.norm_eps,
+        )
+        
+        self.attn = MobileAttention(
+            cfg,
+            owns_kv=True,
+        )
+        
+        self.post_attention_layernorm = MobileRMSNorm(
+            cfg.dim,
+            cfg.norm_eps,
+        )
+        
+        self.mlp = mlp if mlp is not None else MobileMLP(cfg)
+    
+    def forward(
+        self,
+        x,
+        kv,
+        cos,
+        sin,
+        mode_p=None,
+    ):
+        residual = x
+        
+        x = self.input_layernorm(x)
+        
+        x = self.attn(
+            x,
+            kv,
+            cos,
+            sin,
+            mode_p,
+        )
+        
+        x = residual + x
+        
+        residual = x
+        
+        x = self.post_attention_layernorm(x)
+        
+        x = self.mlp(x)
+        
+        x = residual + x
+        
         return x

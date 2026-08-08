@@ -12,6 +12,8 @@ VOCAB = 32768
 
 @dataclass
 class TMTConfig:
+    # --- model family ---
+    model_family: str = "p018"     # p018 | mobile
     # --- shape ---
     vocab_size: int = 32768
     dim: int = 768
@@ -77,6 +79,7 @@ class TMTConfig:
     arena_end: float = 0.9            # 진행률 이 지점에서 λ_t = 0 (이후 순수 삼진)
 
     def __post_init__(self):
+        assert self.model_family in ("p018", "mobile")
         assert self.dim % self.n_q_heads == 0
         assert self.n_q_heads % self.n_kv_heads == 0
         assert self.dim % self.micro_group == 0 and self.ffn_dim % self.micro_group == 0
@@ -119,6 +122,68 @@ def _m100(seq, ckpt):
                      mlp_group=4, cla_group=2, n_modes=1, mode_rank=0,
                      micro_group=128, max_seq_len=seq, grad_checkpoint=ckpt)
 
+def _mobile100(seq, ckpt):
+    """
+    MobileLLM-style 100M-class reference.
+
+    P018과 tensor shape / depth는 동일하게 유지하고,
+    MobileLLM의 transformer block semantics만 사용한다.
+
+    - SwiGLU
+    - GQA
+    - RoPE
+    - RMSNorm
+    - standard residual block
+    - no CLA
+    - no QK norm
+    - no TLinear / ternary
+    - no P018 FiLM / LoRA
+    """
+    return TMTConfig(
+        model_family="mobile",
+
+        vocab_size=VOCAB,
+        dim=768,
+        ffn_dim=2048,
+        n_q_heads=12,
+        n_kv_heads=3,
+
+        # Mobile reference는 factorized embedding을 사용하지 않는다.
+        emb_rank=0,
+
+        # P018의 prelude/middle/coda 개념을 Mobile에서는 사용하지 않는다.
+        # transformer.py에서 n_layers 전체를 일반 decoder layer로 구성한다.
+        n_prelude=0,
+        n_middle=20,
+        n_coda=0,
+
+        # Dense 기준
+        mlp_group=1,
+
+        # Mobile은 CLA를 사용하지 않는다.
+        cla_group=1,
+
+        n_modes=1,
+        mode_rank=0,
+
+        # Mobile baseline에서는 P018 ternary를 사용하지 않는다.
+        micro_group=128,
+        sparse34=False,
+        mlp_lora_rank=0,
+        mlp_film=False,
+
+        # Mobile attention
+        attn_kind="mobile",
+
+        center_weights=False,
+        use_ternary_kernel=False,
+        ternary_kernel_triton=False,
+
+        max_seq_len=seq,
+        grad_checkpoint=ckpt,
+
+        tie_mlp=False,
+    )
 
 def _m100d(seq, ckpt):   # 깊고 얇게: 중간층 24, g6 (MLP 그룹 4개는 동일, 깊이만 증가)
     return TMTConfig(vocab_size=VOCAB, dim=768, ffn_dim=2048, n_q_heads=12, n_kv_heads=3,
@@ -197,12 +262,42 @@ def _m100R1q(seq, ckpt):
 
 
 PRESETS = {"tiny": _tiny, "m100": _m100, "m100d": _m100d,
+           "mobile100": _mobile100,
            "m100R1a": _m100R1a, "m100R1c": _m100R1c,
            "m100R1p": _m100R1p, "m100R1q": _m100R1q}
 
 
-def build_config(preset: str, arch: str, seq: int, ckpt: bool = True) -> TMTConfig:
+def build_config(
+    preset: str,
+    arch: str,
+    seq: int,
+    ckpt: bool = True,
+) -> TMTConfig:
     if preset not in PRESETS:
-        raise KeyError(f"unknown preset {preset!r}; 있는 것: {list(PRESETS)}")
+        raise KeyError(
+            f"unknown preset {preset!r}; 있는 것: {list(PRESETS)}"
+        )
+    
     cfg = PRESETS[preset](seq, ckpt)
+    
+    # Mobile architecture
+    if cfg.model_family == "mobile":
+        if arch == "dense":
+            return dataclasses.replace(
+                cfg,
+                tie_mlp=False,
+                mlp_group=1,
+            )
+        
+        if arch == "tied":
+            return dataclasses.replace(
+                cfg,
+                tie_mlp=True,
+            )
+
+        raise ValueError(
+            f"mobile preset에서 arch는 dense 또는 tied여야 합니다: {arch!r}"
+        )
+    
+    # Existing P018 behavior
     return cfg if arch == "tied" else dense_baseline(cfg)
