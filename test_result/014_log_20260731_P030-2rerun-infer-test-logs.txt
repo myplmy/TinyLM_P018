@@ -1,0 +1,70 @@
+z:\TinyLM>run_P030_infer.bat
+============================================================
+[P030-2 RERUN] inference speed after stage-1 fixes
+============================================================
+
+[env] CPU / cache info - the L3 size decides whether the weights reside
+
+
+L2CacheSize=8192
+L3CacheSize=32768
+Name=AMD Ryzen 7 9700X 8-Core Processor
+NumberOfCores=8
+NumberOfLogicalProcessors=16
+
+
+
+
+============================================================
+[0/4] GATE : KV cache correctness (greedy, cache on vs off must match)
+============================================================
+
+##############################################################################
+  P029 정성 프로브 — 기대치를 먼저 읽을 것 (계획서 P029)
+##############################################################################
+  132M 삼진 / 300M 토큰 = 파라미터당 2.3 토큰 (Chinchilla 권장의 1/9, GPT-2 의 1/130).
+  SFT 없음 → 질문에 답하거나 지시를 따르지 못한다. 사실·연도·수치는 거의 틀린다.
+  볼 것: 조사/어미 타당성 · 문자체계 일관성 · 문체 관성 · 국소 문법 · 반복 붕괴 없음.
+
+==============================================================================
+  P030 단계1 게이트 — KV 캐시 정확성 (그리디: 캐시 유/무가 완전히 같아야 한다)
+==============================================================================
+  틀리기 쉬운 두 곳(둘 다 조용히 틀린다):
+    1. RoPE 를 [:T] 로 자름 (캐시 시 [past_len : past_len+T] 여야 함)
+    2. q_len != kv_len 인데 is_causal=True (SDPA 마스크가 좌상단 정렬됨)
+
+  --- mA_g4s34_k4 (tied) ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 불일치 ❌ — 캐시 구현이 틀렸다  '조선 시대의 과학 기술은 세종대왕 때'
+    캐시 사용: '조선 시대의 과학 기술은 세종대왕 때인 14세기 후반의 시대가 시작되고, 세종대왕 때인 14세기 후반의 시대는 세종대왕 때인'
+    캐시 미사용: '조선 시대의 과학 기술은 세종대왕 때인 14세기 중기(世宗)의 한 사람으로, 14세기 중기(世宗)의 한 사람으로'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 불일치 ❌ — 캐시 구현이 틀렸다  'The Industrial Revolution began in'
+    캐시 사용: 'The Industrial Revolution began in the early 20th century. The first industrial revolution was the first industrial revolution in the world. The first industria'
+    캐시 미사용: 'The Industrial Revolution began in the early 20th century. The first industrial revolution was the first of the first industrial revolution in the world. The fi'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  --- p6d (dense) ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 일치 ✅  '조선 시대의 과학 기술은 세종대왕 때'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 일치 ✅  'The Industrial Revolution began in'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  불일치 ❌ — 캐시 구현이 틀렸다. 속도를 재는 의미가 없다.
+
+================================================================
+[STOP] KV cache output does NOT match the no-cache path.
+
+  The cache is wrong. Speed numbers would be meaningless, so nothing else ran.
+  Look at these two places first - both fail SILENTLY:
+    1. transformer.forward : rope_cos/rope_sin must be sliced
+       [past_len : past_len+T], not [:T]
+    2. modules.Attention.forward : when q_len is not kv_len you must build
+       tril(kv_len - q_len), NOT pass is_causal=True
+
+  Reproduce a single case with:
+    python scripts\probe_prompts.py --check-cache
+
+  Nothing was measured. No files were written.
+================================================================

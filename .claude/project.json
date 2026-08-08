@@ -1,0 +1,42 @@
+{
+  "name": "TinyLM",
+  "description": "저사양 CPU·엣지·모바일용 초경량 LLM 아키텍처. 1순위 목표는 연산이 아니라 메모리 최적화(연산 증가 감수). 지향점: dense 대비 절반 이하 메모리로 유사 품질.",
+  "language": "ko",
+  "conventions": {
+    "prose": "ko",
+    "identifiers": "en",
+    "params_single_source": "tinylm/config.py (TMTConfig/PRESETS)"
+  },
+  "execution": {
+    "ai_runs_training": false,
+    "note": "AI는 사용자 환경에서 학습/GPU 코드를 직접 실행하지 않는다. 코드 수정만 하고, 실행은 명령어·순서를 제시해 사용자가 대리 수행 후 로그를 회신한다.",
+    "git": "사용자가 Windows 셸에서 수행(Cowork 마운트에서 rename/unlink 차단)",
+    "bat_files": "순수 ASCII만(한글/chcp/<>|% 금지)"
+  },
+  "entrypoints": {
+    "cli": "python run100m.py <prepare|train|eval|compare|all|lrfind|generate|kdcache>",
+    "canonical_code": "tinylm/"
+  },
+  "docs": {
+    "handoff": "handoff/",
+    "methods": "docs/METHODS.md + docs/methods/",
+    "plans": "test_plan/",
+    "results": "test_result/",
+    "baselines": "docs/EXPERIMENT_BASELINES.md (실험조건 기준표 - exp-preflight 참조 정본)",
+    "review": "docs/review/ (누적 판정·기법 채택 수준·최적 모델안)"
+  },
+  "projectSkills": {
+    "exp-preflight": "새 학습 명령·배치·계획서 작성 전 실험설계 검증(조건중복·토큰환산·태그충돌·무효비교)",
+    "log-to-result": "학습 로그 -> test_result 문서 + 실험목록/원장/기준표 연쇄 갱신",
+    "run-batch": ".bat 작성·수정·검증(ASCII, errorlevel 정책, 태그 위생)"
+  },
+  "tools": {
+    "registry_check": "python scripts/check_run_registry.py [--tag T | --plan '조건' | --steps N]",
+    "bat_lint": "python scripts/lint_bat.py [파일]",
+    "fp8_gate": "python scripts/bench_fp8_gemm.py"
+  },
+  "judgment": {
+    "gap_thresholds": "<=0.07 성립 / 0.07~0.15 대응 / >0.15 grad_max 먼저",
+    "caveat": "재현 노이즈 sigma 미측정 - <=0.05 급 차이를 단정 금지. 안정성은 json grad_max 로(인쇄 |g| 는 10스텝 샘플)"
+  }
+}

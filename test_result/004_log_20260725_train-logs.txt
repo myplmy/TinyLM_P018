@@ -1,0 +1,107 @@
+z:\TinyLM>run100m_test.bat
+=========================================
+(A) offline-KD validation (tiny, ~2min)
+=========================================
+  a) tiny dense teacher
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=1  CLA=1  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        3.3M       0.8 MB
+  임베딩(factorized)               2.1M       0.5 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            5.5M       1.3 MB
+
+  L3(32MB) 상주       : 가능   (여유 30.7 MB — KV·활성용)
+  MLP 블록(층별 독립)    : 0.1 MB  (dense: 재사용 없음)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 1.5 KB/token  (6/6 층만 소유)
+    1024 ctx 1.5 MB   2048 ctx 3.0 MB
+========================================================================
+[dense] device=cuda  40step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/40  loss 10.3987  |g| 0.58  anneal 0.00  lr 1.20e-04  325 ms/step
+  step    10/40  loss 10.3766  |g| 0.52  anneal 0.18  lr 5.73e-04  107 ms/step
+    >> val_loss 10.0000  ppl 22026.47  (train 10.041, val-train -0.041)
+       best 갱신 10.0000 -> tiny_synthetic_2M_dense_best.pt
+  step    20/40  loss 10.0056  |g| 0.73  anneal 0.76  lr 3.90e-04  128 ms/step
+  step    30/40  loss 9.5895  |g| 0.94  anneal 1.00  lr 1.62e-04  110 ms/step
+  step    39/40  loss 9.3738  |g| 1.00  anneal 1.00  lr 6.11e-05  102 ms/step
+    >> val_loss 9.3750  ppl 11789.92  (train 9.374, val-train +0.001)
+       best 갱신 9.3750 -> tiny_synthetic_2M_dense_best.pt
+
+[dense] 최종 val_loss 9.3788  ppl 11834.21  best 9.3750@40  (5.5M, 0.1분, skip 0)
+  b) build KD cache (top32)
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+[kdcache] 0M pos x top32 캐싱 -> Z:\TinyLM\runs\kdcache\tiny_synthetic_2M_top32  (교사 tiny_synthetic_2M_dense.pt)
+  kdcache step 0/40  (239 ms/step)
+[kdcache] 완료: 40960 pos 저장
+  c) online KD  (tag kc_online)
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+[init] dense 부모초기화 완료 (중간 MLP는 2층 평균)  <- tiny_synthetic_2M_dense.pt
+[kd] 교사 로드 완료 (alpha=0.5, T=2.0)
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.6 MB
+  임베딩(factorized)               2.1M       0.5 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       1.1 MB
+
+  L3(32MB) 상주       : 가능   (여유 30.9 MB — KV·활성용)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[kc_online] device=cuda  40step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/40  loss 4.6599  |g| 0.61  anneal 0.00  lr 1.20e-04  372 ms/step
+  step    10/40  loss 4.5137  |g| 0.42  anneal 0.18  lr 5.73e-04  116 ms/step
+    >> val_loss 8.8338  ppl 6861.97  (train 4.477, val-train +4.356)
+       best 갱신 8.8338 -> tiny_synthetic_2M_kc_online_best.pt
+  step    20/40  loss 4.4872  |g| 0.30  anneal 0.76  lr 3.90e-04  130 ms/step
+  step    30/40  loss 4.4961  |g| 0.29  anneal 1.00  lr 1.62e-04  121 ms/step
+  step    39/40  loss 4.4690  |g| 0.28  anneal 1.00  lr 6.11e-05  114 ms/step
+    >> val_loss 8.7912  ppl 6576.45  (train 4.469, val-train +4.322)
+       best 갱신 8.7912 -> tiny_synthetic_2M_kc_online_best.pt
+
+[kc_online] 최종 val_loss 8.7950  ppl 6601.16  best 8.7912@40  (4.6M, 0.1분, skip 0)
+  d) offline KD (tag kc_offline)
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+[init] dense 부모초기화 완료 (중간 MLP는 2층 평균)  <- tiny_synthetic_2M_dense.pt
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.6 MB
+  임베딩(factorized)               2.1M       0.5 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       1.1 MB
+
+  L3(32MB) 상주       : 가능   (여유 30.9 MB — KV·활성용)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[kc_offline] device=cuda  40step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+[kd-cache] 오프라인 KD 캐시 사용 (top32, 교사 forward 없음)
+  step     0/40  loss 14.8983  |g| 6.89  anneal 0.00  lr 1.20e-04  369 ms/step
+  step    10/40  loss 9.8276  |g| 9.00  anneal 0.18  lr 5.73e-04  97 ms/step
+    >> val_loss 9.7750  ppl 17588.49  (train 5.658, val-train +4.117)
+       best 갱신 9.7750 -> tiny_synthetic_2M_kc_offline_best.pt
+  step    20/40  loss 5.5588  |g| 2.09  anneal 0.76  lr 3.90e-04  111 ms/step
+  step    30/40  loss 5.5712  |g| 1.81  anneal 1.00  lr 1.62e-04  97 ms/step
+  step    39/40  loss 5.4485  |g| 0.71  anneal 1.00  lr 6.11e-05  90 ms/step
+    >> val_loss 10.0750  ppl 23741.98  (train 5.448, val-train +4.627)
+
+[kc_offline] 최종 val_loss 10.0775  ppl 23801.41  best 9.7750@20  (4.6M, 0.1분, skip 0)
+  CHECK: kc_online vs kc_offline final loss should be CLOSE (top-k approx). If very different, offline KD has a bug.

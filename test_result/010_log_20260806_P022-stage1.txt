@@ -1,0 +1,2 @@
+[P022-1] FP8 end-to-end : does the GEMM gain survive the full step
+[guard] is an fp8 training flag wired into the CLI

@@ -1,0 +1,113 @@
+[P037-3] L1 : the real per-source token ratio
+[1/2] ko-en at 100M
+
+==============================================================================
+[runlog] 2026-08-06 05:27:06  name=P037-stage3
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py prepare --data ko-en --tokens 100M --exact-cache
+==============================================================================
+[cmd] python run100m.py prepare --data ko-en --tokens 100M --exact-cache
+[data] 정확 캐시(ko-en_100000000) 없음 → 정확히 그 크기로 신규 생성(상위호환 무시)
+[tok] 캐시 사용 Z:\TinyLM\data_cache\tok-ko-en-32768.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+     0.0M / 100M  (0K tok/s)
+    10.0M / 100M  (225K tok/s)
+    10.0M / 100M  (225K tok/s)
+    10.0M / 100M  (225K tok/s)
+    10.0M / 100M  (225K tok/s)
+    15.0M / 100M  (295K tok/s)
+    15.0M / 100M  (295K tok/s)
+    15.0M / 100M  (295K tok/s)
+    15.0M / 100M  (295K tok/s)
+    20.0M / 100M  (350K tok/s)
+    20.0M / 100M  (350K tok/s)
+    20.0M / 100M  (350K tok/s)
+    20.0M / 100M  (350K tok/s)
+    20.0M / 100M  (350K tok/s)
+    25.0M / 100M  (392K tok/s)
+    25.0M / 100M  (392K tok/s)
+    30.0M / 100M  (427K tok/s)
+    45.0M / 100M  (502K tok/s)
+    45.0M / 100M  (502K tok/s)
+    45.0M / 100M  (502K tok/s)
+    45.0M / 100M  (502K tok/s)
+    50.0M / 100M  (521K tok/s)
+    50.0M / 100M  (521K tok/s)
+    50.0M / 100M  (521K tok/s)
+    70.0M / 100M  (570K tok/s)
+    70.0M / 100M  (570K tok/s)
+    75.0M / 100M  (578K tok/s)
+    75.0M / 100M  (578K tok/s)
+    75.0M / 100M  (578K tok/s)
+    75.0M / 100M  (578K tok/s)
+    75.0M / 100M  (578K tok/s)
+    80.0M / 100M  (588K tok/s)
+    85.0M / 100M  (596K tok/s)
+    90.0M / 100M  (604K tok/s)
+[mix] 소스별 실제 비율 (설정 비율은 DATASETS 의 ratio)
+      wikimedia/wikipedia                    설정 0.50 | 문서  49.7% | ★토큰  50.6% (50.6M)
+      HuggingFaceFW/fineweb-edu              설정 0.50 | 문서  50.3% | ★토큰  49.4% (49.4M)
+      ★문서 비율과 토큰 비율이 다른 이유: rng 가 **문서**를 고르는데 소스마다 문서 길이가 다르다(L1).
+[data] train 99.5M / val 500K 토큰 저장 -> Z:\TinyLM\data_cache\ko-en_100000000
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 2.7분  (2026-08-06 05:29:51)
+==============================================================================
+[2/2] ko-edu-en at 100M - the curated mix
+
+==============================================================================
+[runlog] 2026-08-06 05:29:51  name=P037-stage3
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py prepare --data ko-edu-en --tokens 100M --exact-cache
+==============================================================================
+[cmd] python run100m.py prepare --data ko-edu-en --tokens 100M --exact-cache
+[data] 정확 캐시(ko-edu-en_100000000) 없음 → 정확히 그 크기로 신규 생성(상위호환 무시)
+[tok] 캐시 사용 Z:\TinyLM\data_cache\tok-ko-edu-en-32768.json
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+     0.0M / 100M  (0K tok/s)
+    10.0M / 100M  (100K tok/s)
+    10.0M / 100M  (100K tok/s)
+    10.0M / 100M  (100K tok/s)
+    20.0M / 100M  (158K tok/s)
+    25.0M / 100M  (147K tok/s)
+    40.0M / 100M  (156K tok/s)
+    45.0M / 100M  (168K tok/s)
+    45.0M / 100M  (168K tok/s)
+    55.0M / 100M  (176K tok/s)
+    60.0M / 100M  (172K tok/s)
+    60.0M / 100M  (172K tok/s)
+    70.0M / 100M  (171K tok/s)
+    75.0M / 100M  (156K tok/s)
+    75.0M / 100M  (156K tok/s)
+    75.0M / 100M  (156K tok/s)
+    80.0M / 100M  (162K tok/s)
+    80.0M / 100M  (162K tok/s)
+    90.0M / 100M  (162K tok/s)
+    90.0M / 100M  (162K tok/s)
+    95.0M / 100M  (168K tok/s)
+[mix] 소스별 실제 비율 (설정 비율은 DATASETS 의 ratio)
+      eliceai/korean-webtext-edu             설정 0.50 | 문서  49.9% | ★토큰  66.9% (66.9M)  <-- 설정과 5%p 이상 차이
+      HuggingFaceFW/fineweb-edu              설정 0.50 | 문서  50.1% | ★토큰  33.1% (33.1M)  <-- 설정과 5%p 이상 차이
+      ★문서 비율과 토큰 비율이 다른 이유: rng 가 **문서**를 고르는데 소스마다 문서 길이가 다르다(L1).
+[data] train 99.5M / val 500K 토큰 저장 -> Z:\TinyLM\data_cache\ko-edu-en_100000000
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 9.8분  (2026-08-06 05:39:38)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. the [mix] block: per source, configured ratio / document share / TOKEN share
+  2. whether any source is flagged as differing from config by over 5 points
+  3. the same for both datasets
+  If no [mix] block appears, the cache already existed and was reused - the
+  count only happens on a fresh build.
+
+HOW TO ACT ON IT
+  token share within a few points of the configured ratio
+      -> L1 is cosmetic. Correct the wording in past documents and move on.
+  token share far from the configured ratio
+      -> every 'Korean 50 percent' statement is wrong and must be corrected.
+         Then decide whether to switch the mixer to TOKEN units, which would
+         change cache content and therefore needs its own namespace.
+
+LIMITS: measures the mix as built, at 100M. Does not touch L2 (no shuffle) or
+  L3 (single text field). L2 in particular changes cache content.
+=================================================================

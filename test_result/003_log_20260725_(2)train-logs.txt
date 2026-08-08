@@ -1,0 +1,65 @@
+z:\TinyLM>python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 40 --micro-bs 4 --seq 128 --accum 2 --eval-every 20 --tag k_off
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 40 --micro-bs 4 --seq 128 --accum 2 --eval-every 20 --tag k_off
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.6 MB
+  임베딩(factorized)               2.1M       0.5 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       1.1 MB
+
+  L3(32MB) 상주       : 가능   (여유 30.9 MB — KV·활성용)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[k_off] device=cuda  40step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/40  loss 10.4017  |g| 0.55  anneal 0.00  lr 1.20e-04  329 ms/step
+  step    10/40  loss 10.3728  |g| 0.51  anneal 0.18  lr 5.73e-04  106 ms/step
+    >> val_loss 9.9925  ppl 21861.89  (train 10.021, val-train -0.029)
+       best 갱신 9.9925 -> tiny_synthetic_2M_k_off_best.pt
+  step    20/40  loss 9.9863  |g| 0.76  anneal 0.76  lr 3.90e-04  124 ms/step
+  step    30/40  loss 9.5381  |g| 0.96  anneal 1.00  lr 1.62e-04  108 ms/step
+  step    39/40  loss 9.3181  |g| 1.00  anneal 1.00  lr 6.11e-05  100 ms/step
+    >> val_loss 9.3150  ppl 11103.33  (train 9.318, val-train -0.003)
+       best 갱신 9.3150 -> tiny_synthetic_2M_k_off_best.pt
+
+[k_off] 최종 val_loss 9.3181  ppl 11138.08  best 9.3150@40  (4.6M, 0.1분, skip 0)
+
+z:\TinyLM>python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 40 --micro-bs 4 --seq 128 --accum 2 --eval-every 20 --ternary-kernel --ternary-kernel-triton --tag k_triton
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 40 --micro-bs 4 --seq 128 --accum 2 --eval-every 20 --ternary-kernel --ternary-kernel-triton --tag k_triton
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.6 MB
+  임베딩(factorized)               2.1M       0.5 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       1.1 MB
+
+  L3(32MB) 상주       : 가능   (여유 30.9 MB — KV·활성용)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[k_triton] device=cuda  40step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/40  loss 10.4017  |g| 0.55  anneal 0.00  lr 1.20e-04  435 ms/step
+  step    10/40  loss 10.3726  |g| 0.50  anneal 0.18  lr 5.73e-04  160 ms/step
+    >> val_loss 9.9900  ppl 21807.30  (train 10.021, val-train -0.031)
+       best 갱신 9.9900 -> tiny_synthetic_2M_k_triton_best.pt
+  step    20/40  loss 9.9857  |g| 0.76  anneal 0.76  lr 3.90e-04  246 ms/step
+  step    30/40  loss 9.5375  |g| 0.96  anneal 1.00  lr 1.62e-04  203 ms/step
+  step    39/40  loss 9.3167  |g| 1.00  anneal 1.00  lr 6.11e-05  183 ms/step
+    >> val_loss 9.3150  ppl 11103.33  (train 9.317, val-train -0.002)
+       best 갱신 9.3150 -> tiny_synthetic_2M_k_triton_best.pt
+
+[k_triton] 최종 val_loss 9.3169  ppl 11124.16  best 9.3150@40  (4.6M, 0.2분, skip 0)

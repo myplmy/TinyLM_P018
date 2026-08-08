@@ -1,0 +1,161 @@
+[P040] tying and TRAINING speed - is the 7.8 percent real
+[pre] solo run + 5 min idle required
+[1/2] dense, 250 steps
+
+==============================================================================
+[runlog] 2026-08-07 15:54:44  name=P040-trainspeed
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch dense --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --eval-every 999 --compile --seed 1337 --tag ts_dense
+==============================================================================
+[cmd] python run100m.py train --arch dense --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --eval-every 999 --compile --seed 1337 --tag ts_dense
+[data] 정확 캐시 사용(exact, 상위호환 무시): 600.0M (ko-en) -> Z:\TinyLM\data_cache\ko-en_600000000
+[compile] mode=default — 첫 스텝은 수 분 걸릴 수 있습니다
+========================================================================
+d=768 ffn=2048 layers=2+16+2  MLP g=1  CLA=1  vocab=32768 E=256
+========================================================================
+  삼진 가중치                      123.9M      25.2 MB
+  임베딩(factorized)               8.6M       1.8 MB
+  기타(norm/gate/router)          0.1M       0.1 MB
+  ----------------------------------------------------
+  합계                          132.5M      27.1 MB
+
+
+  저장(packed, 안 B)                         27.1 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                        31.4 MB
+  ★상주(runtime, 현 구현)                     978.0 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 27.1MB 라 오해를 부른다(결과 016)
+  MLP 블록(층별 독립)    : 1.0 MB  (dense: 재사용 없음)
+  토큰당 FLOPs          : 0.248 GFLOP
+  KV 캐시               : 15.0 KB/token  (20/20 층만 소유)
+    1024 ctx 15.0 MB   2048 ctx 30.0 MB
+========================================================================
+[ts_dense] device=cuda  250step x 131K tok = 33M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+W0807 15:55:10.829000 68600 site-packages\torch\_inductor\utils.py:1679] [0/0] Not enough SMs to use max_autotune_gemm mode
+  step     0/250  ce 10.4140  |g| 3.02  anneal 0.00  lr 4.00e-05  65477 ms/step
+  step    10/250  ce 9.3102  |g| 1.68  anneal 0.00  lr 4.40e-04  8659 ms/step
+  step    20/250  ce 8.1519  |g| 5.37  anneal 0.00  lr 8.40e-04  5957 ms/step
+  step    30/250  ce 8.1677  |g| 12.10  anneal 0.00  lr 9.99e-04  4990 ms/step
+  step    40/250  ce 7.8196  |g| 3.29  anneal 0.02  lr 9.90e-04  4497 ms/step
+  step    50/250  ce 7.3637  |g| 0.99  anneal 0.11  lr 9.73e-04  4197 ms/step
+  step    60/250  ce 7.2149  |g| 0.68  anneal 0.20  lr 9.47e-04  3994 ms/step
+  step    70/250  ce 7.0668  |g| 0.42  anneal 0.29  lr 9.14e-04  3849 ms/step
+  step    80/250  ce 6.9525  |g| 0.47  anneal 0.38  lr 8.74e-04  3740 ms/step
+  step    90/250  ce 6.8560  |g| 0.69  anneal 0.47  lr 8.27e-04  3656 ms/step
+  step   100/250  ce 6.7112  |g| 0.40  anneal 0.56  lr 7.75e-04  3589 ms/step
+  step   110/250  ce 6.5734  |g| 0.53  anneal 0.64  lr 7.19e-04  3533 ms/step
+  step   120/250  ce 6.5246  |g| 0.40  anneal 0.73  lr 6.59e-04  3485 ms/step
+  step   130/250  ce 6.4741  |g| 0.43  anneal 0.82  lr 5.97e-04  3445 ms/step
+  step   140/250  ce 6.4066  |g| 0.63  anneal 0.91  lr 5.34e-04  3411 ms/step
+  step   150/250  ce 6.3026  |g| 0.40  anneal 1.00  lr 4.72e-04  3381 ms/step
+  step   160/250  ce 6.2887  |g| 0.44  anneal 1.00  lr 4.11e-04  3355 ms/step
+  step   170/250  ce 6.1617  |g| 0.57  anneal 1.00  lr 3.53e-04  3332 ms/step
+  step   180/250  ce 6.1847  |g| 0.37  anneal 1.00  lr 2.98e-04  3313 ms/step
+  step   190/250  ce 6.1637  |g| 0.33  anneal 1.00  lr 2.49e-04  3295 ms/step
+  step   200/250  ce 6.1126  |g| 0.38  anneal 1.00  lr 2.05e-04  3279 ms/step
+  step   210/250  ce 6.0604  |g| 0.35  anneal 1.00  lr 1.68e-04  3265 ms/step
+  step   220/250  ce 6.0756  |g| 0.39  anneal 1.00  lr 1.39e-04  3253 ms/step
+  step   230/250  ce 6.0039  |g| 0.35  anneal 1.00  lr 1.17e-04  3240 ms/step
+  step   240/250  ce 6.0705  |g| 0.33  anneal 1.00  lr 1.04e-04  3230 ms/step
+  step   249/250  ce 6.0484  |g| 0.34  anneal 1.00  lr 1.00e-04  3220 ms/step
+    >> val_loss 5.9675  ppl 390.53  (train_ce 6.048, val-CE -0.081)  bpb 1.968
+       best 갱신 5.9675 -> m100_ko-en_300M_ts_dense_best.pt
+
+[ts_dense] 최종 val_loss 5.9409  ppl 380.29  best 5.9675@250  (132.5M, 13.6분, skip 0, VRAM 7.82GB(reserved)/5.95GB(alloc))
+[vram] M(=micro_bs×seq)=8,192  peak reserved 7.82GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 13.7분  (2026-08-07 16:08:27)
+==============================================================================
+[2/2] tied g8, 250 steps - only --mlp-group differs
+
+==============================================================================
+[runlog] 2026-08-07 16:08:28  name=P040-trainspeed
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --eval-every 999 --compile --seed 1337 --mlp-group 8 --tag ts_g8
+==============================================================================
+[cmd] python run100m.py train --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --eval-every 999 --compile --seed 1337 --mlp-group 8 --tag ts_g8
+[data] 정확 캐시 사용(exact, 상위호환 무시): 600.0M (ko-en) -> Z:\TinyLM\data_cache\ko-en_600000000
+[compile] mode=default — 첫 스텝은 수 분 걸릴 수 있습니다
+========================================================================
+d=768 ffn=2048 layers=2+16+2  MLP g=8  CLA=2  vocab=32768 E=256
+========================================================================
+  삼진 가중치                       54.9M      11.2 MB
+  임베딩(factorized)               8.6M       1.8 MB
+  기타(norm/gate/router)          0.1M       0.1 MB
+  ----------------------------------------------------
+  합계                           63.5M      13.1 MB
+
+
+  저장(packed, 안 B)                         13.1 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                        15.1 MB
+  ★상주(runtime, 현 구현)                     451.5 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 13.1MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 1.0 MB  (8회 연속 재사용)
+  토큰당 FLOPs          : 0.248 GFLOP
+  KV 캐시               : 7.5 KB/token  (10/20 층만 소유)
+    1024 ctx 7.5 MB   2048 ctx 15.0 MB
+========================================================================
+[ts_g8] device=cuda  250step x 131K tok = 33M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+W0807 16:08:47.829000 60772 site-packages\torch\_inductor\utils.py:1679] [0/0] Not enough SMs to use max_autotune_gemm mode
+  step     0/250  ce 10.4128  |g| 3.20  anneal 0.00  lr 4.00e-05  47104 ms/step
+  step    10/250  ce 9.5353  |g| 1.69  anneal 0.00  lr 4.40e-04  6827 ms/step
+  step    20/250  ce 8.0557  |g| 4.12  anneal 0.00  lr 8.40e-04  4916 ms/step
+  step    30/250  ce 7.5798  |g| 1.02  anneal 0.00  lr 9.99e-04  4234 ms/step
+  step    40/250  ce 7.2927  |g| 0.96  anneal 0.02  lr 9.90e-04  3883 ms/step
+  step    50/250  ce 7.0260  |g| 1.30  anneal 0.11  lr 9.73e-04  3670 ms/step
+  step    60/250  ce 6.8823  |g| 0.58  anneal 0.20  lr 9.47e-04  3526 ms/step
+  step    70/250  ce 6.7534  |g| 0.68  anneal 0.29  lr 9.14e-04  3423 ms/step
+  step    80/250  ce 6.6353  |g| 0.74  anneal 0.38  lr 8.74e-04  3346 ms/step
+  step    90/250  ce 6.4965  |g| 0.72  anneal 0.47  lr 8.27e-04  3289 ms/step
+  step   100/250  ce 6.3836  |g| 0.60  anneal 0.56  lr 7.75e-04  3242 ms/step
+  step   110/250  ce 6.2810  |g| 0.96  anneal 0.64  lr 7.19e-04  3205 ms/step
+  step   120/250  ce 6.2494  |g| 0.88  anneal 0.73  lr 6.59e-04  3172 ms/step
+  step   130/250  ce 6.2049  |g| 0.62  anneal 0.82  lr 5.97e-04  3144 ms/step
+  step   140/250  ce 6.1248  |g| 0.57  anneal 0.91  lr 5.34e-04  3121 ms/step
+  step   150/250  ce 6.0636  |g| 0.74  anneal 1.00  lr 4.72e-04  3101 ms/step
+  step   160/250  ce 6.0483  |g| 0.60  anneal 1.00  lr 4.11e-04  3083 ms/step
+  step   170/250  ce 5.9288  |g| 0.68  anneal 1.00  lr 3.53e-04  3067 ms/step
+  step   180/250  ce 5.9536  |g| 0.61  anneal 1.00  lr 2.98e-04  3053 ms/step
+  step   190/250  ce 5.9323  |g| 0.59  anneal 1.00  lr 2.49e-04  3040 ms/step
+  step   200/250  ce 5.8850  |g| 0.61  anneal 1.00  lr 2.05e-04  3027 ms/step
+  step   210/250  ce 5.8291  |g| 0.57  anneal 1.00  lr 1.68e-04  3016 ms/step
+  step   220/250  ce 5.8474  |g| 0.65  anneal 1.00  lr 1.39e-04  3006 ms/step
+  step   230/250  ce 5.7750  |g| 0.58  anneal 1.00  lr 1.17e-04  2998 ms/step
+  step   240/250  ce 5.8543  |g| 0.61  anneal 1.00  lr 1.04e-04  2989 ms/step
+  step   249/250  ce 5.8335  |g| 0.60  anneal 1.00  lr 1.00e-04  2983 ms/step
+    >> val_loss 5.7531  ppl 315.17  (train_ce 5.833, val-CE -0.080)  bpb 1.897
+       best 갱신 5.7531 -> m100_ko-en_300M_ts_g8_best.pt
+
+[ts_g8] 최종 val_loss 5.7219  ppl 305.48  best 5.7531@250  (63.5M, 12.7분, skip 0, VRAM 5.06GB(reserved)/4.55GB(alloc))
+[vram] M(=micro_bs×seq)=8,192  peak reserved 5.06GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 12.8분  (2026-08-07 16:21:19)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. wall clock minutes for each run, from the runlog footer.
+  2. STEADY-STATE ms/step, converted: (printed mean x N - step0) / (N - 1).
+     The printed number is a cumulative mean and includes the compile step.
+  3. the toklen-per-FLOPs line from each report() header. It should read
+     0.248 GFLOP for BOTH - that is the point.
+  4. peak VRAM. Tying should cut optimiser state roughly in half; that is a
+     CAPACITY win and it is real even if the time win is not.
+
+***DO NOT RECORD val_loss.*** 250 steps is a speed probe only.
+
+HOW TO READ IT
+  gap under 2 percent
+      -> EXPERIMENT_BASELINES section 2.1 was noise. Correct the wording
+         everywhere: tying buys memory, not training time.
+  gap 5 to 10 percent, same direction as g
+      -> real. Attribute it to CACHE LOCALITY, not parameter count - the
+         AdamW step is only 0.13 percent of a step, so it cannot be the cause.
+         Then a g4 arm is worth adding to see if it is monotone in g.
+  tied SLOWER
+      -> also informative. Gradient accumulation into a shared tensor is
+         extra work that dense does not do.
+
+LIMITS: one seed / 250 steps / one machine / grad-ckpt ON for both (with
+  --no-ckpt the answer could differ, and -17.3 percent would swamp it).
+=================================================================

@@ -1,0 +1,183 @@
+[P018 stage 2] --kd-teacher-tag mC_wsd PLUS --kd-teacher-infer. Never run together. Also tests the allocation-pattern hypothesis of result 037 section 5.
+[1/2] compressed teacher + teacher infer mode, ckpt ON. Q1: does reserved land in 9.4-9.9 GiB
+
+==============================================================================
+[runlog] 2026-08-08 15:10:09  name=P018_stage2
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --preset m100R1c --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --seed 1337 --eval-every 100 --compile --kd --kd-every 4 --init-from --kd-teacher-tag mC_wsd --kd-teacher-infer --tag mC_cti250
+==============================================================================
+[cmd] python run100m.py train --preset m100R1c --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --seed 1337 --eval-every 100 --compile --kd --kd-every 4 --init-from --kd-teacher-tag mC_wsd --kd-teacher-infer --tag mC_cti250
+[ckpt] m100R1c 용 'dense' 가 없어 부모 프리셋 것을 쓴다 -> m100_ko-en_300M_dense.pt
+[ckpt] m100R1c 용 'dense_best' 가 없어 부모 프리셋 것을 쓴다 -> m100_ko-en_300M_dense_best.pt
+[data] 정확 캐시 사용(exact, 상위호환 무시): 600.0M (ko-en) -> Z:\TinyLM\data_cache\ko-en_600000000
+[init] dense 부모초기화 완료 (중간 MLP는 8층 평균)  <- m100_ko-en_300M_dense.pt
+[kd] ★교사 추론 모드(P042): freeze_quant + drop_latent 적용 — 매 스텝 refresh_quant 를 건너뛰고 latent 를 해제한다
+[kd] ⚠️ 로짓은 **비트 동일해야 한다**. 다르면 구현 버그다(게이트 G0)
+[kd] 교사 로드 완료 (alpha=0.5, T=2.0)
+[compile] mode=default — 첫 스텝은 수 분 걸릴 수 있습니다
+========================================================================
+d=768 ffn=2048 layers=2+16+2  MLP g=8  CLA=2  vocab=32768 E=256
+========================================================================
+  삼진 가중치                       54.9M      11.2 MB
+  임베딩(factorized)               8.6M       1.8 MB
+  기타(norm/gate/router)          0.1M       0.1 MB
+  ----------------------------------------------------
+  합계                           63.5M      13.1 MB
+
+
+  저장(packed, 안 B)                         13.1 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                        15.1 MB
+  ★상주(runtime, 현 구현)                     451.5 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 13.1MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 1.0 MB  (8회 연속 재사용)
+  토큰당 FLOPs          : 0.248 GFLOP
+  KV 캐시               : 7.5 KB/token  (10/20 층만 소유)
+    1024 ctx 7.5 MB   2048 ctx 15.0 MB
+========================================================================
+[mC_cti250] device=cuda  250step x 131K tok = 33M 토큰  (sched=wsd ema=0.0 lora_r=0)
+
+[sched] shape=linear  anneal_start=0.15(step~37)  anneal_end=0.80(step~200)  완전삼진=0.80(step~200)  decay_frac=0.20  LR감쇠시작=0.80(step~200)  정렬됨
+W0808 15:10:31.360000 8204 site-packages\torch\_inductor\utils.py:1679] [0/0] Not enough SMs to use max_autotune_gemm mode
+  step     0/250  ce 7.6792  loss 6.3049[KD혼합]  |g| 15.31  anneal 0.00  lr 4.00e-05  53760 ms/step
+  step    10/250  ce 5.6939  |g| 3.14  anneal 0.00  lr 4.40e-04  7711 ms/step
+  step    20/250  ce 4.9550  loss 3.2668[KD혼합]  |g| 0.82  anneal 0.00  lr 8.40e-04  5580 ms/step
+  step    30/250  ce 4.7363  |g| 1.10  anneal 0.00  lr 1.00e-03  4775 ms/step
+  step    40/250  ce 4.5603  loss 2.8562[KD혼합]  |g| 0.40  anneal 0.02  lr 1.00e-03  4402 ms/step
+  step    50/250  ce 4.4094  |g| 0.68  anneal 0.08  lr 1.00e-03  4149 ms/step
+  step    60/250  ce 4.4335  loss 2.7071[KD혼합]  |g| 0.41  anneal 0.14  lr 1.00e-03  4001 ms/step
+  step    70/250  ce 4.4057  |g| 0.55  anneal 0.20  lr 1.00e-03  3874 ms/step
+  step    80/250  ce 4.2932  loss 2.6036[KD혼합]  |g| 0.34  anneal 0.26  lr 1.00e-03  3797 ms/step
+  step    90/250  ce 4.2458  |g| 0.51  anneal 0.32  lr 1.00e-03  3720 ms/step
+    >> val_loss 4.5819  ppl 97.70  (train_ce 4.261, val-CE +0.321)  bpb 1.511
+       best 갱신 4.5819 -> m100R1c_ko-en_300M_mC_cti250_best.pt
+  step   100/250  ce 4.2622  loss 2.5651[KD혼합]  |g| 0.39  anneal 0.38  lr 1.00e-03  3717 ms/step
+  step   110/250  ce 4.2300  |g| 0.49  anneal 0.45  lr 1.00e-03  3661 ms/step
+  step   120/250  ce 4.2113  loss 2.5198[KD혼합]  |g| 0.35  anneal 0.51  lr 1.00e-03  3628 ms/step
+  step   130/250  ce 4.2549  |g| 0.52  anneal 0.57  lr 1.00e-03  3588 ms/step
+  step   140/250  ce 4.2239  loss 2.5141[KD혼합]  |g| 0.35  anneal 0.63  lr 1.00e-03  3565 ms/step
+  step   150/250  ce 4.2447  |g| 0.51  anneal 0.69  lr 1.00e-03  3535 ms/step
+  step   160/250  ce 4.2261  loss 2.5110[KD혼합]  |g| 0.35  anneal 0.75  lr 1.00e-03  3517 ms/step
+  step   170/250  ce 4.2072  |g| 0.86  anneal 0.82  lr 1.00e-03  3494 ms/step
+  step   180/250  ce 4.2321  loss 2.5093[KD혼합]  |g| 0.36  anneal 0.88  lr 1.00e-03  3480 ms/step
+  step   190/250  ce 4.1876  |g| 0.43  anneal 0.94  lr 1.00e-03  3460 ms/step
+    >> val_loss 4.1834  ppl 65.59  (train_ce 4.260, val-CE -0.076)  bpb 1.380
+       best 갱신 4.1834 -> m100R1c_ko-en_300M_mC_cti250_best.pt
+  step   200/250  ce 4.2166  loss 2.5088[KD혼합]  |g| 0.42  anneal 1.00  lr 1.00e-03  3464 ms/step
+  step   210/250  ce 4.1655  |g| 0.52  anneal 1.00  lr 9.73e-04  3447 ms/step
+  step   220/250  ce 4.1602  loss 2.4659[KD혼합]  |g| 0.33  anneal 1.00  lr 7.75e-04  3437 ms/step
+  step   230/250  ce 4.1617  |g| 0.41  anneal 1.00  lr 4.72e-04  3422 ms/step
+  step   240/250  ce 4.1435  loss 2.4130[KD혼합]  |g| 0.26  anneal 1.00  lr 2.05e-04  3416 ms/step
+  step   249/250  ce 4.1133  |g| 0.30  anneal 1.00  lr 1.01e-04  3406 ms/step
+    >> val_loss 4.0653  ppl 58.28  (train_ce 4.113, val-CE -0.048)  bpb 1.341
+       best 갱신 4.0653 -> m100R1c_ko-en_300M_mC_cti250_best.pt
+
+[mC_cti250] 최종 val_loss 4.0722  ppl 58.69  best 4.0653@250  (63.5M, 14.3분, skip 0, KD forward 63/250스텝(≈25%), VRAM 11.48GB(reserved)/9.29GB(alloc))
+[vram] M(=micro_bs×seq)=8,192  peak reserved 11.48GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 14.5분  (2026-08-08 15:24:36)
+==============================================================================
+[2/2] the same plus --no-ckpt. Q2: finishes AND check_spill says normal. Finishing alone is NOT enough.
+
+==============================================================================
+[runlog] 2026-08-08 15:25:36  name=P018_stage2
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --preset m100R1c --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --seed 1337 --eval-every 100 --compile --kd --kd-every 4 --init-from --kd-teacher-tag mC_wsd --kd-teacher-infer --no-ckpt --tag mC_cti250_nockpt
+==============================================================================
+[cmd] python run100m.py train --preset m100R1c --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --seed 1337 --eval-every 100 --compile --kd --kd-every 4 --init-from --kd-teacher-tag mC_wsd --kd-teacher-infer --no-ckpt --tag mC_cti250_nockpt
+[ckpt] m100R1c 용 'dense' 가 없어 부모 프리셋 것을 쓴다 -> m100_ko-en_300M_dense.pt
+[ckpt] m100R1c 용 'dense_best' 가 없어 부모 프리셋 것을 쓴다 -> m100_ko-en_300M_dense_best.pt
+[data] 정확 캐시 사용(exact, 상위호환 무시): 600.0M (ko-en) -> Z:\TinyLM\data_cache\ko-en_600000000
+[init] dense 부모초기화 완료 (중간 MLP는 8층 평균)  <- m100_ko-en_300M_dense.pt
+[kd] ★교사 추론 모드(P042): freeze_quant + drop_latent 적용 — 매 스텝 refresh_quant 를 건너뛰고 latent 를 해제한다
+[kd] ⚠️ 로짓은 **비트 동일해야 한다**. 다르면 구현 버그다(게이트 G0)
+[kd] 교사 로드 완료 (alpha=0.5, T=2.0)
+[compile] mode=default — 첫 스텝은 수 분 걸릴 수 있습니다
+========================================================================
+d=768 ffn=2048 layers=2+16+2  MLP g=8  CLA=2  vocab=32768 E=256
+========================================================================
+  삼진 가중치                       54.9M      11.2 MB
+  임베딩(factorized)               8.6M       1.8 MB
+  기타(norm/gate/router)          0.1M       0.1 MB
+  ----------------------------------------------------
+  합계                           63.5M      13.1 MB
+
+
+  저장(packed, 안 B)                         13.1 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                        15.1 MB
+  ★상주(runtime, 현 구현)                     451.5 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 13.1MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 1.0 MB  (8회 연속 재사용)
+  토큰당 FLOPs          : 0.248 GFLOP
+  KV 캐시               : 7.5 KB/token  (10/20 층만 소유)
+    1024 ctx 7.5 MB   2048 ctx 15.0 MB
+========================================================================
+[mC_cti250_nockpt] device=cuda  250step x 131K tok = 33M 토큰  (sched=wsd ema=0.0 lora_r=0)
+
+[sched] shape=linear  anneal_start=0.15(step~37)  anneal_end=0.80(step~200)  완전삼진=0.80(step~200)  decay_frac=0.20  LR감쇠시작=0.80(step~200)  정렬됨
+  step     0/250  ce 7.6794  loss 6.3051[KD혼합]  |g| 15.31  anneal 0.00  lr 4.00e-05  21523 ms/step
+  step    10/250  ce 5.6946  |g| 3.15  anneal 0.00  lr 4.40e-04  4467 ms/step
+  step    20/250  ce 4.9570  loss 3.2675[KD혼합]  |g| 0.83  anneal 0.00  lr 8.40e-04  3715 ms/step
+  step    30/250  ce 4.7258  |g| 1.01  anneal 0.00  lr 1.00e-03  3381 ms/step
+  step    40/250  ce 4.5590  loss 2.8558[KD혼합]  |g| 0.41  anneal 0.02  lr 1.00e-03  3239 ms/step
+  step    50/250  ce 4.4089  |g| 0.71  anneal 0.08  lr 1.00e-03  3125 ms/step
+  step    60/250  ce 4.4314  loss 2.7055[KD혼합]  |g| 0.37  anneal 0.14  lr 1.00e-03  3087 ms/step
+  step    70/250  ce 4.4041  |g| 0.49  anneal 0.20  lr 1.00e-03  3058 ms/step
+  step    80/250  ce 4.2940  loss 2.6040[KD혼합]  |g| 0.36  anneal 0.26  lr 1.00e-03  3057 ms/step
+  step    90/250  ce 4.2458  |g| 0.51  anneal 0.32  lr 1.00e-03  3053 ms/step
+    >> val_loss 4.5844  ppl 97.94  (train_ce 4.260, val-CE +0.325)  bpb 1.512
+       best 갱신 4.5844 -> m100R1c_ko-en_300M_mC_cti250_nockpt_best.pt
+  step   100/250  ce 4.2617  loss 2.5643[KD혼합]  |g| 0.36  anneal 0.38  lr 1.00e-03  3104 ms/step
+  step   110/250  ce 4.2315  |g| 0.48  anneal 0.45  lr 1.00e-03  3090 ms/step
+  step   120/250  ce 4.2119  loss 2.5192[KD혼합]  |g| 0.35  anneal 0.51  lr 1.00e-03  3095 ms/step
+  step   130/250  ce 4.2595  |g| 0.64  anneal 0.57  lr 1.00e-03  3078 ms/step
+  step   140/250  ce 4.2241  loss 2.5162[KD혼합]  |g| 0.36  anneal 0.63  lr 1.00e-03  3074 ms/step
+  step   150/250  ce 4.2411  |g| 0.47  anneal 0.69  lr 1.00e-03  3056 ms/step
+  step   160/250  ce 4.2268  loss 2.5099[KD혼합]  |g| 0.32  anneal 0.75  lr 1.00e-03  3056 ms/step
+  step   170/250  ce 4.1995  |g| 0.64  anneal 0.82  lr 1.00e-03  3046 ms/step
+  step   180/250  ce 4.2297  loss 2.5073[KD혼합]  |g| 0.34  anneal 0.88  lr 1.00e-03  3058 ms/step
+  step   190/250  ce 4.1966  |g| 0.54  anneal 0.94  lr 1.00e-03  3041 ms/step
+    >> val_loss 4.1859  ppl 65.76  (train_ce 4.260, val-CE -0.074)  bpb 1.380
+       best 갱신 4.1859 -> m100R1c_ko-en_300M_mC_cti250_nockpt_best.pt
+  step   200/250  ce 4.2151  loss 2.5081[KD혼합]  |g| 0.39  anneal 1.00  lr 1.00e-03  3050 ms/step
+  step   210/250  ce 4.1654  |g| 0.61  anneal 1.00  lr 9.73e-04  3050 ms/step
+  step   220/250  ce 4.1582  loss 2.4648[KD혼합]  |g| 0.30  anneal 1.00  lr 7.75e-04  3075 ms/step
+  step   230/250  ce 4.1600  |g| 0.40  anneal 1.00  lr 4.72e-04  3062 ms/step
+  step   240/250  ce 4.1439  loss 2.4138[KD혼합]  |g| 0.27  anneal 1.00  lr 2.05e-04  3075 ms/step
+  step   249/250  ce 4.1121  |g| 0.31  anneal 1.00  lr 1.01e-04  3072 ms/step
+    >> val_loss 4.0678  ppl 58.43  (train_ce 4.112, val-CE -0.044)  bpb 1.341
+       best 갱신 4.0678 -> m100R1c_ko-en_300M_mC_cti250_nockpt_best.pt
+
+[mC_cti250_nockpt] 최종 val_loss 4.0706  ppl 58.59  best 4.0678@250  (63.5M, 12.9분, skip 0, KD forward 63/250스텝(≈25%), VRAM 14.79GB(reserved)/13.74GB(alloc))
+[vram] M(=micro_bs×seq)=8,192  peak reserved 14.79GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 13.0분  (2026-08-08 15:38:38)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. peak reserved for BOTH runs, from the [vram] lines.
+  2. ***the check_spill verdict for run [2/2].***  Normal or suspected.
+     ***Do not stop at 'it finished'*** - result 037 finished and was 26 percent
+     slower because it spilled quietly.
+  3. steady state ms/step for both.
+     (running_avg x N - step0) / (N - 1)   with N = 250
+  4. grad_max and skip from the json.
+
+HOW TO READ IT
+  [1/2] reserved 9.4 to 9.9 GiB
+      -> ***the two teacher levers ADD.*** Quote both numbers together.
+  [1/2] above 10.3 GiB
+      -> they overlap. Report the overlap size - it says what the teacher's
+         memory is actually made of.
+  [2/2] finishes AND spill verdict is normal
+      -> ***--no-ckpt becomes usable with real headroom.*** That is -20.5
+         percent on every KD run, and it makes EXPERIMENT_BASELINES section 5
+         revisable at last. It also CONFIRMS the allocation-pattern hypothesis.
+  [2/2] finishes but spill is suspected
+      -> headroom is still not enough. The hypothesis of result 037 section 5
+         is wrong or incomplete - say so, it is a real finding.
+  [2/2] OOM or CUBLAS error
+      -> record the peak and the requested allocation size. Cheap negative.
+
+LIMITS: 250 steps, VRAM and speed only. ***Quality is not measured here.***
+  One seed. Spill policy must be DISABLED for [2/2] to mean anything.
+=================================================================

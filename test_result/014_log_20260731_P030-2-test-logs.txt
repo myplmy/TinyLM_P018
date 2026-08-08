@@ -1,0 +1,129 @@
+z:\TinyLM>run_P030_infer.bat
+============================================================
+[P030-2] inference speed : GPU vs CPU, three models
+============================================================
+
+[env] CPU / cache info - record this, the L3 size decides whether 11.7MB resides
+
+
+L2CacheSize=8192
+L3CacheSize=32768
+Name=AMD Ryzen 7 9700X 8-Core Processor
+NumberOfCores=8
+NumberOfLogicalProcessors=16
+
+
+
+
+=== [1/3] GPU baseline (for the CPU/GPU ratio) ===
+====================================================================================
+  P030 추론 속도 벤치
+  max_new=32  reps=3(중위값)  프롬프트='대한민국의 수도 서울은'
+  ★KV 캐시 없음 — 매 토큰 전체 재계산. 절대값은 비관적, 모델 간 비교는 유효
+====================================================================================
+
+  device  threads            model    배포MB     tok/s   TTFT ms
+------------------------------------------------------------------------------------
+    cuda       기본              p6d    30.9     22.12      40.8
+    cuda       기본         mC_g8_k4    14.9     31.00      28.2
+    cuda       기본      mA_g4s34_k4    11.7     30.43      30.3
+------------------------------------------------------------------------------------
+
+★핵심 질문: 메모리를 줄이면 CPU 추론이 빨라지는가?
+
+  [cuda] 기준 = p6d(30.9MB) 22.12 tok/s
+    mC_g8_k4          14.9MB    31.00 tok/s  =  1.40x (메모리는 2.07x 작음)
+    mA_g4s34_k4       11.7MB    30.43 tok/s  =  1.38x (메모리는 2.64x 작음)
+
+  해석: 속도비 ≈ 메모리비 면 '메모리→속도 전이'가 성립.
+        속도비 ≈ 1.0 이면 전이가 없다 → 5비트 패킹 커널(P030 단계3)이 필요하다는 근거.
+
+★한계: KV 캐시 미구현 / 삼진은 dequant 후 GEMM(저장≠실행 크기) /
+        Windows CPU 측정은 노이즈 큼(중위값 사용, 1~2% 차이는 읽지 않는다).
+
+=== [2/3] CPU, single thread - the most realistic edge number ===
+====================================================================================
+  P030 추론 속도 벤치
+  max_new=32  reps=3(중위값)  프롬프트='대한민국의 수도 서울은'
+  ★KV 캐시 없음 — 매 토큰 전체 재계산. 절대값은 비관적, 모델 간 비교는 유효
+====================================================================================
+
+  device  threads            model    배포MB     tok/s   TTFT ms
+------------------------------------------------------------------------------------
+     cpu        1              p6d    30.9      1.89     476.1
+     cpu        1         mC_g8_k4    14.9      3.77     209.5
+     cpu        1      mA_g4s34_k4    11.7      1.39     680.1
+------------------------------------------------------------------------------------
+
+★핵심 질문: 메모리를 줄이면 CPU 추론이 빨라지는가?
+
+  [cpu] 기준 = p6d(30.9MB) 1.89 tok/s
+    mC_g8_k4          14.9MB     3.77 tok/s  =  1.99x (메모리는 2.07x 작음)
+    mA_g4s34_k4       11.7MB     1.39 tok/s  =  0.73x (메모리는 2.64x 작음)
+
+  해석: 속도비 ≈ 메모리비 면 '메모리→속도 전이'가 성립.
+        속도비 ≈ 1.0 이면 전이가 없다 → 5비트 패킹 커널(P030 단계3)이 필요하다는 근거.
+
+★한계: KV 캐시 미구현 / 삼진은 dequant 후 GEMM(저장≠실행 크기) /
+        Windows CPU 측정은 노이즈 큼(중위값 사용, 1~2% 차이는 읽지 않는다).
+
+=== [3/3] CPU thread sweep - how much does it scale? ===
+====================================================================================
+  P030 추론 속도 벤치
+  max_new=32  reps=3(중위값)  프롬프트='대한민국의 수도 서울은'
+  ★KV 캐시 없음 — 매 토큰 전체 재계산. 절대값은 비관적, 모델 간 비교는 유효
+====================================================================================
+
+  device  threads            model    배포MB     tok/s   TTFT ms
+------------------------------------------------------------------------------------
+     cpu        2              p6d    30.9      2.57     361.9
+     cpu        2         mC_g8_k4    14.9      5.18     175.0
+     cpu        2      mA_g4s34_k4    11.7      2.13     442.4
+     cpu        4              p6d    30.9      3.26     294.5
+     cpu        4         mC_g8_k4    14.9      7.01     122.3
+     cpu        4      mA_g4s34_k4    11.7      3.57     257.1
+     cpu        8              p6d    30.9      4.33     216.0
+     cpu        8         mC_g8_k4    14.9      8.90     102.4
+     cpu        8      mA_g4s34_k4    11.7      5.06     182.6
+------------------------------------------------------------------------------------
+
+★핵심 질문: 메모리를 줄이면 CPU 추론이 빨라지는가?
+
+  [cpu] 기준 = p6d(30.9MB) 2.57 tok/s
+    p6d               30.9MB     3.26 tok/s  =  1.27x (메모리는 1.00x 작음)
+    p6d               30.9MB     4.33 tok/s  =  1.68x (메모리는 1.00x 작음)
+    mC_g8_k4          14.9MB     5.18 tok/s  =  2.01x (메모리는 2.07x 작음)
+    mC_g8_k4          14.9MB     7.01 tok/s  =  2.72x (메모리는 2.07x 작음)
+    mC_g8_k4          14.9MB     8.90 tok/s  =  3.46x (메모리는 2.07x 작음)
+    mA_g4s34_k4       11.7MB     2.13 tok/s  =  0.83x (메모리는 2.64x 작음)
+    mA_g4s34_k4       11.7MB     3.57 tok/s  =  1.39x (메모리는 2.64x 작음)
+    mA_g4s34_k4       11.7MB     5.06 tok/s  =  1.97x (메모리는 2.64x 작음)
+
+  해석: 속도비 ≈ 메모리비 면 '메모리→속도 전이'가 성립.
+        속도비 ≈ 1.0 이면 전이가 없다 → 5비트 패킹 커널(P030 단계3)이 필요하다는 근거.
+
+★한계: KV 캐시 미구현 / 삼진은 dequant 후 GEMM(저장≠실행 크기) /
+        Windows CPU 측정은 노이즈 큼(중위값 사용, 1~2% 차이는 읽지 않는다).
+
+================================================================
+WHAT TO RECORD
+  1. CPU model, core count, L3 size (from the wmic block above)
+  2. tok/s and TTFT per (device, threads, model)
+  3. the "speed ratio vs memory ratio" summary the script prints
+
+HOW TO READ IT - the one question that matters
+  speed ratio close to the memory ratio  -> memory-to-speed transfer WORKS.
+      The whole memory-optimisation thesis gets direct support.
+  speed ratio close to 1.0               -> NO transfer at this stage.
+      Expected, because weights are dequantised before the GEMM. This is the
+      evidence that a packed 5-bit CPU kernel is required to cash in the 1.25bpw.
+      Record it as a NEGATIVE RESULT, not a failure.
+
+  Also: if 1-thread CPU tok/s is under about 1, the model is not usable on edge as-is
+  and the KV cache (stage 1) becomes the top priority, not an optimisation.
+
+LIMITS: no KV cache yet (absolute values pessimistic, comparisons valid) /
+  Windows CPU timing is noisy (median of 3, ignore 1-2 percent) /
+  batch 1 single request only - server throughput is a different subject.
+================================================================
+done.

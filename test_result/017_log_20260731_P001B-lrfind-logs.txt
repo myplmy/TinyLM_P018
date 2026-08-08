@@ -1,0 +1,137 @@
+z:\TinyLM>run_P001B_lrfind.bat
+============================================================
+[P001B] LR re-search at accum 16 (effective batch 131K)
+============================================================
+
+[pre] static attribute check
+TMTConfig 선언 필드 36개 + 런타임 부착 6개 = 허용 36개
+
+
+총 0건
+주의: 정적 검사라 getattr() 같은 동적 접근은 못 본다. 필드 '존재'만 보고 값·로직은 모른다.
+      스모크(run_smoke.bat)의 대체가 아니라 그 앞단의 값싼 그물이다.
+
+============================================================
+[1/3] DENSE at accum 16   ***THE ONE THAT MATTERS MOST***
+  dense is the teacher. Every KD run inherits its quality, so if any LR is wrong
+  this is the expensive one. Also the P033 dense baseline runs 17 hours.
+============================================================
+[cmd] python run100m.py lrfind --arch dense --preset m100 --data ko-en --tokens 300M --method both --micro-bs 8 --seq 1024 --accum 16 --lrs 6e-4,1e-3,2e-3,3e-3,4e-3 --lrfind-steps 150
+[data] 캐시 재사용: 300.0M 토큰 (ko-en) -> Z:\TinyLM\data_cache\ko-en_300000000
+[lrfind:range] dense m100  lr 1.0e-05->1.0e-01  150 step (anneal=0)
+  s  0  lr 1.00e-05  loss 10.412  |g| 3.19
+  s 10  lr 1.86e-05  loss 10.168  |g| 1.27
+  s 20  lr 3.44e-05  loss 9.954  |g| 1.19
+  s 30  lr 6.39e-05  loss 9.738  |g| 1.27
+  s 40  lr 1.19e-04  loss 9.346  |g| 1.59
+  s 50  lr 2.20e-04  loss 8.529  |g| 1.37
+  s 60  lr 4.08e-04  loss 7.811  |g| 1.36
+  s 70  lr 7.57e-04  loss 7.453  |g| 1.14
+  s 80  lr 1.40e-03  loss 7.201  |g| 2.44
+  s 90  lr 2.61e-03  loss 8.090  |g| 7.30
+  -> 발산 감지 @ lr 3.14e-03 (loss 9.287 |g| 12.07)
+[lrfind:range] 발산 lr=0.003137937543664838  ->  권장 lr≈1.05e-03 (발산의 1/3)
+[data] 캐시 재사용: 300.0M 토큰 (ko-en) -> Z:\TinyLM\data_cache\ko-en_300000000
+[lrfind:grid] dense m100  lrs=[0.0006, 0.001, 0.002, 0.003, 0.004]  각 60 step (anneal=0)
+  lr 6.00e-04  loss 10.41->6.99  |g|max 7.50
+  lr 1.00e-03  loss 10.41->7.38  |g|max 5.92
+  lr 2.00e-03  발산
+  lr 3.00e-03  발산
+  lr 4.00e-03  발산
+[lrfind:grid] 권장 lr = 0.001  (발산 없이 가장 큰 LR)
+
+[lrfind] 최종 권장 lr ≈ 0.001   (본 실행 --lr 로 사용)
+        1 file(s) copied.
+
+============================================================
+[2/3] TIED at accum 16
+  the student. Tied shares MLP weights, so per-weight gradient magnitude differs
+  from dense and the optimum need not be the same number.
+============================================================
+[cmd] python run100m.py lrfind --arch tied --preset m100 --data ko-en --tokens 300M --method both --micro-bs 8 --seq 1024 --accum 16 --lrs 6e-4,1e-3,2e-3,3e-3,4e-3 --lrfind-steps 150
+[data] 캐시 재사용: 300.0M 토큰 (ko-en) -> Z:\TinyLM\data_cache\ko-en_300000000
+[lrfind:range] tied m100  lr 1.0e-05->1.0e-01  150 step (anneal=0)
+  s  0  lr 1.00e-05  loss 10.413  |g| 3.25
+  s 10  lr 1.86e-05  loss 10.217  |g| 1.46
+  s 20  lr 3.44e-05  loss 10.033  |g| 1.23
+  s 30  lr 6.39e-05  loss 9.801  |g| 1.27
+  s 40  lr 1.19e-04  loss 9.411  |g| 1.62
+  s 50  lr 2.20e-04  loss 8.589  |g| 1.41
+  s 60  lr 4.08e-04  loss 7.877  |g| 1.98
+  s 70  lr 7.57e-04  loss 7.478  |g| 1.39
+  s 80  lr 1.40e-03  loss 7.363  |g| 3.20
+  -> 발산 감지 @ lr 1.69e-03 (loss 8.030 |g| 17.54)
+[lrfind:range] 발산 lr=0.0016911725446448135  ->  권장 lr≈5.64e-04 (발산의 1/3)
+[data] 캐시 재사용: 300.0M 토큰 (ko-en) -> Z:\TinyLM\data_cache\ko-en_300000000
+[lrfind:grid] tied m100  lrs=[0.0006, 0.001, 0.002, 0.003, 0.004]  각 60 step (anneal=0)
+  lr 6.00e-04  loss 10.41->6.90  |g|max 3.67
+  lr 1.00e-03  발산
+  lr 2.00e-03  발산
+  lr 3.00e-03  발산
+  lr 4.00e-03  발산
+[lrfind:grid] 권장 lr = 0.0006  (발산 없이 가장 큰 LR)
+
+[lrfind] 최종 권장 lr ≈ 0.0006   (본 실행 --lr 로 사용)
+        1 file(s) copied.
+
+============================================================
+[3/3] CONTROL - dense at accum 8, reproducing P001's condition
+  This is what validates the whole exercise. If accum 8 lands near P001's
+  1.7e-3 divergence and accum 16 lands HIGHER, the batch-size dependence is
+  demonstrated rather than assumed. If the two come out the SAME, then claim (b)
+  above was wrong and only claim (a) justifies any change. Either way we learn.
+============================================================
+[cmd] python run100m.py lrfind --arch dense --preset m100 --data ko-en --tokens 300M --method both --micro-bs 8 --seq 1024 --accum 8 --lrs 6e-4,1e-3,2e-3,3e-3,4e-3 --lrfind-steps 150
+[data] 캐시 재사용: 300.0M 토큰 (ko-en) -> Z:\TinyLM\data_cache\ko-en_300000000
+[lrfind:range] dense m100  lr 1.0e-05->1.0e-01  150 step (anneal=0)
+  s  0  lr 1.00e-05  loss 10.413  |g| 3.40
+  s 10  lr 1.86e-05  loss 10.173  |g| 1.55
+  s 20  lr 3.44e-05  loss 10.002  |g| 1.42
+  s 30  lr 6.39e-05  loss 9.766  |g| 1.37
+  s 40  lr 1.19e-04  loss 9.403  |g| 1.63
+  s 50  lr 2.20e-04  loss 8.630  |g| 1.37
+  s 60  lr 4.08e-04  loss 7.902  |g| 1.28
+  s 70  lr 7.57e-04  loss 7.537  |g| 1.75
+  s 80  lr 1.40e-03  loss 7.461  |g| 2.96
+  -> 발산 감지 @ lr 1.91e-03 (loss 7.569 |g| 23.25)
+[lrfind:range] 발산 lr=0.0019137235207582625  ->  권장 lr≈6.38e-04 (발산의 1/3)
+[data] 캐시 재사용: 300.0M 토큰 (ko-en) -> Z:\TinyLM\data_cache\ko-en_300000000
+[lrfind:grid] dense m100  lrs=[0.0006, 0.001, 0.002, 0.003, 0.004]  각 60 step (anneal=0)
+  lr 6.00e-04  loss 10.41->7.29  |g|max 9.38
+  lr 1.00e-03  발산
+  lr 2.00e-03  발산
+  lr 3.00e-03  발산
+  lr 4.00e-03  발산
+[lrfind:grid] 권장 lr = 0.0006  (발산 없이 가장 큰 LR)
+
+[lrfind] 최종 권장 lr ≈ 0.0006   (본 실행 --lr 로 사용)
+        1 file(s) copied.
+
+============================================================
+WHAT TO RECORD - send back all three files
+  runs\logs\lrfind_P001B_dense_a16.json
+  runs\logs\lrfind_P001B_tied_a16.json
+  runs\logs\lrfind_P001B_dense_a8.json
+  plus the console text (the per-step lines are not all in the json)
+
+HOW TO READ IT
+  grid  : the largest lr with grad_max under 10 AND loss decreasing. This is the
+          number to act on. Compare its suggested_lr against 1e-3.
+  range : diverge_lr is a useful CEILING. Ignore its suggested_lr - safety=3.0
+          already proved too conservative once (P001: suggested 5.6e-4, reality 1e-3).
+
+DECISION RULE
+  grid picks 1e-3            -> current LR confirmed. Close this out, P033 unblocked.
+  grid picks ABOVE 1e-3      -> headroom exists, but DO NOT adopt it from 60 steps.
+                                Short runs read speed only, never quality (CLAUDE.md).
+                                Adopt only after one full 300M run beats p6d 3.7045
+                                by more than 0.024. That run is the real evidence.
+  grid picks BELOW 1e-3      -> we have been training slightly too hot the whole time.
+                                Check grad_max in past json before believing it.
+  accum 8 and 16 differ      -> batch-dependence confirmed. Then P033's larger batch
+                                needs its OWN lrfind, not this number.
+
+LIMITS: no mlp-group / no sparse34 (plain arch only) / full FP, no ternary anneal /
+  safety=3.0 not adjustable from the CLI / this does not measure quality at all.
+================================================================
+done.

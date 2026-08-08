@@ -1,0 +1,412 @@
+[tool] instrumentation contract smoke test
+[pre] static attribute check - catches cfg.WRONG_NAME without loading torch
+
+==============================================================================
+[runlog] 2026-07-31 21:16:15  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\check_attrs.py
+==============================================================================
+TMTConfig 선언 필드 39개 + 런타임 부착 9개 = 허용 39개
+
+
+총 0건
+주의: 정적 검사라 getattr() 같은 동적 접근은 못 본다. 필드 '존재'만 보고 값·로직은 모른다.
+      스모크(run_smoke.bat)의 대체가 아니라 그 앞단의 값싼 그물이다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.0분  (2026-07-31 21:16:17)
+==============================================================================
+[1] baseline
+
+==============================================================================
+[runlog] 2026-07-31 21:16:17  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --tag sm_base
+==============================================================================
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --tag sm_base
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.1 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[sm_base] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 10.4017  |g| 0.55  anneal 0.00  lr 1.20e-04  353 ms/step
+  step    10/30  ce 10.3744  |g| 0.52  anneal 0.30  lr 5.48e-04  122 ms/step
+    >> val_loss 10.3050  ppl 29881.65  (train_ce 10.302, val-CE +0.003)
+       best 갱신 10.3050 -> tiny_synthetic_2M_sm_base_best.pt
+  step    20/30  ce 10.0764  |g| 0.70  anneal 1.00  lr 2.47e-04  127 ms/step
+  step    29/30  ce 9.8945  |g| 0.82  anneal 1.00  lr 6.21e-05  117 ms/step
+    >> val_loss 9.8750  ppl 19438.29  (train_ce 9.895, val-CE -0.020)
+       best 갱신 9.8750 -> tiny_synthetic_2M_sm_base_best.pt
+
+[sm_base] 최종 val_loss 9.8750  ppl 19438.29  best 9.8750@30  (4.6M, 0.1분, skip 0, VRAM 0.36GB(reserved)/0.30GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.36GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 21:16:26)
+==============================================================================
+[2] seed path
+
+==============================================================================
+[runlog] 2026-07-31 21:16:26  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --seed 4242 --tag sm_seed
+==============================================================================
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --seed 4242 --tag sm_seed
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.1 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[sm_seed] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0 seed=4242)
+
+  step     0/30  ce 10.3972  |g| 0.57  anneal 0.00  lr 1.20e-04  360 ms/step
+  step    10/30  ce 10.3753  |g| 0.53  anneal 0.30  lr 5.48e-04  121 ms/step
+    >> val_loss 10.2562  ppl 28459.86  (train_ce 10.291, val-CE -0.035)
+       best 갱신 10.2562 -> tiny_synthetic_2M_sm_seed_best.pt
+  step    20/30  ce 10.0482  |g| 0.74  anneal 1.00  lr 2.47e-04  132 ms/step
+  step    29/30  ce 9.8469  |g| 0.86  anneal 1.00  lr 6.21e-05  125 ms/step
+    >> val_loss 9.8400  ppl 18769.72  (train_ce 9.847, val-CE -0.007)
+       best 갱신 9.8400 -> tiny_synthetic_2M_sm_seed_best.pt
+
+[sm_seed] 최종 val_loss 9.8419  ppl 18804.94  best 9.8400@30  (4.6M, 0.1분, skip 0, VRAM 0.36GB(reserved)/0.30GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.36GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 21:16:36)
+==============================================================================
+[3] 3:4 path
+
+==============================================================================
+[runlog] 2026-07-31 21:16:36  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --sparse34 --tag sm_s34
+==============================================================================
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --sparse34 --tag sm_s34
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+[sparse34] 3:4 희소 삼진(1.25bpw) 활성 — 각 4-블록 |w|최소 1개 0강제
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치(3:4 1.25bpw)           2.5M       0.4 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.8 MB
+
+
+  저장(packed, 안 B)                          0.8 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.0 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.8MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[sm_s34] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 10.4017  |g| 0.55  anneal 0.00  lr 1.20e-04  393 ms/step
+  step    10/30  ce 10.3752  |g| 0.52  anneal 0.30  lr 5.48e-04  131 ms/step
+    >> val_loss 10.3125  ppl 30106.61  (train_ce 10.311, val-CE +0.001)
+       best 갱신 10.3125 -> tiny_synthetic_2M_sm_s34_best.pt
+  step    20/30  ce 10.0922  |g| 0.71  anneal 1.00  lr 2.47e-04  139 ms/step
+  step    29/30  ce 9.9102  |g| 0.82  anneal 1.00  lr 6.21e-05  126 ms/step
+    >> val_loss 9.8775  ppl 19486.94  (train_ce 9.910, val-CE -0.033)
+       best 갱신 9.8775 -> tiny_synthetic_2M_sm_s34_best.pt
+
+[sm_s34] 최종 val_loss 9.8812  ppl 19560.16  best 9.8775@30  (4.6M, 0.1분, skip 0, VRAM 0.36GB(reserved)/0.30GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.36GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 21:16:46)
+==============================================================================
+[4] wsd schedule path
+
+==============================================================================
+[runlog] 2026-07-31 21:16:46  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --tag sm_sched
+==============================================================================
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --tag sm_sched
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.1 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[sm_sched] device=cuda  30step x 1K tok = 0M 토큰  (sched=wsd ema=0.0 lora_r=0)
+
+[sched] shape=linear  anneal_start=0.22(step~6)  anneal_end=0.80(step~24)  완전삼진=0.80(step~24)  decay_frac=0.20  LR감쇠시작=0.80(step~24)  정렬됨
+  step     0/30  ce 10.4017  |g| 0.55  anneal 0.00  lr 1.20e-04  353 ms/step
+  step    10/30  ce 10.3727  |g| 0.51  anneal 0.20  lr 6.00e-04  139 ms/step
+    >> val_loss 10.2500  ppl 28282.54  (train_ce 10.260, val-CE -0.010)
+       best 갱신 10.2500 -> tiny_synthetic_2M_sm_sched_best.pt
+  step    20/30  ce 9.8795  |g| 0.83  anneal 0.77  lr 6.00e-04  137 ms/step
+  step    29/30  ce 9.0719  |g| 0.95  anneal 1.00  lr 1.12e-04  124 ms/step
+    >> val_loss 9.0400  ppl 8433.78  (train_ce 9.072, val-CE -0.032)
+       best 갱신 9.0400 -> tiny_synthetic_2M_sm_sched_best.pt
+
+[sm_sched] 최종 val_loss 9.0481  ppl 8502.58  best 9.0400@30  (4.6M, 0.1분, skip 0, VRAM 0.36GB(reserved)/0.30GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.36GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 21:16:56)
+==============================================================================
+[5] no grad checkpoint path
+
+==============================================================================
+[runlog] 2026-07-31 21:16:56  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --no-ckpt --tag sm_nockpt
+==============================================================================
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --no-ckpt --tag sm_nockpt
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.1 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[sm_nockpt] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 10.4017  |g| 0.55  anneal 0.00  lr 1.20e-04  352 ms/step
+  step    10/30  ce 10.3744  |g| 0.52  anneal 0.30  lr 5.48e-04  95 ms/step
+    >> val_loss 10.3050  ppl 29881.65  (train_ce 10.302, val-CE +0.003)
+       best 갱신 10.3050 -> tiny_synthetic_2M_sm_nockpt_best.pt
+  step    20/30  ce 10.0764  |g| 0.70  anneal 1.00  lr 2.47e-04  102 ms/step
+  step    29/30  ce 9.8945  |g| 0.82  anneal 1.00  lr 6.21e-05  91 ms/step
+    >> val_loss 9.8750  ppl 19438.29  (train_ce 9.895, val-CE -0.020)
+       best 갱신 9.8750 -> tiny_synthetic_2M_sm_nockpt_best.pt
+
+[sm_nockpt] 최종 val_loss 9.8750  ppl 19438.29  best 9.8750@30  (4.6M, 0.1분, skip 0, VRAM 0.40GB(reserved)/0.34GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.40GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.1분  (2026-07-31 21:17:05)
+==============================================================================
+[6] KD path - needs a tiny dense parent first
+
+==============================================================================
+[runlog] 2026-07-31 21:17:05  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch dense --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15
+==============================================================================
+[cmd] python run100m.py train --arch dense --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=1  CLA=1  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        3.3M       0.7 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            5.5M       1.1 MB
+
+
+  저장(packed, 안 B)                          1.1 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.3 MB
+  ★상주(runtime, 현 구현)                      33.6 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 1.1MB 라 오해를 부른다(결과 016)
+  MLP 블록(층별 독립)    : 0.1 MB  (dense: 재사용 없음)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 1.5 KB/token  (6/6 층만 소유)
+    1024 ctx 1.5 MB   2048 ctx 3.0 MB
+========================================================================
+[dense] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 10.3987  |g| 0.58  anneal 0.00  lr 1.20e-04  376 ms/step
+  step    10/30  ce 10.3779  |g| 0.54  anneal 0.30  lr 5.48e-04  138 ms/step
+    >> val_loss 10.3125  ppl 30106.61  (train_ce 10.317, val-CE -0.004)
+       best 갱신 10.3125 -> tiny_synthetic_2M_dense_best.pt
+  step    20/30  ce 10.0894  |g| 0.67  anneal 1.00  lr 2.47e-04  153 ms/step
+  step    29/30  ce 9.9178  |g| 0.80  anneal 1.00  lr 6.21e-05  142 ms/step
+    >> val_loss 9.9162  ppl 20256.88  (train_ce 9.918, val-CE -0.002)
+       best 갱신 9.9162 -> tiny_synthetic_2M_dense_best.pt
+
+[dense] 최종 val_loss 9.9175  ppl 20282.22  best 9.9162@30  (5.5M, 0.1분, skip 0, VRAM 0.39GB(reserved)/0.32GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.39GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 21:17:16)
+==============================================================================
+
+==============================================================================
+[runlog] 2026-07-31 21:17:16  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --kd --init-from --mlp-group 4 --kd-every 4 --tag sm_kd
+==============================================================================
+[cmd] python run100m.py train --arch tied --tiny --data synthetic --tokens 2M --steps 30 --micro-bs 4 --seq 128 --accum 2 --eval-every 15 --kd --init-from --mlp-group 4 --kd-every 4 --tag sm_kd
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+[init] dense 부모초기화 완료 (중간 MLP는 4층 평균)  <- tiny_synthetic_2M_dense.pt
+[kd] 교사 로드 완료 (alpha=0.5, T=2.0)
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=4  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.1M       0.4 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.2M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.0 MB
+  ★상주(runtime, 현 구현)                      23.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (4회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[sm_kd] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 9.9432  loss 4.9731[KD혼합]  |g| 0.73  anneal 0.00  lr 1.20e-04  478 ms/step
+  step    10/30  ce 9.1863  |g| 0.93  anneal 0.30  lr 5.48e-04  145 ms/step
+    >> val_loss 8.9025  ppl 7350.33  (train_ce 8.929, val-CE -0.026)
+       best 갱신 8.9025 -> tiny_synthetic_2M_sm_kd_best.pt
+  step    20/30  ce 8.7689  loss 4.7321[KD혼합]  |g| 0.72  anneal 1.00  lr 2.47e-04  147 ms/step
+  step    29/30  ce 8.7243  |g| 0.82  anneal 1.00  lr 6.21e-05  132 ms/step
+    >> val_loss 8.7125  ppl 6078.42  (train_ce 8.724, val-CE -0.012)
+       best 갱신 8.7125 -> tiny_synthetic_2M_sm_kd_best.pt
+
+[sm_kd] 최종 val_loss 8.7225  ppl 6139.51  best 8.7125@30  (4.2M, 0.1분, skip 0, KD forward 8/30스텝(≈27%), VRAM 0.71GB(reserved)/0.60GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.71GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 21:17:26)
+==============================================================================
+[VERIFY] every instrumentation field was recorded
+
+==============================================================================
+[runlog] 2026-07-31 21:17:26  name=smoke
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\check_smoke.py
+==============================================================================
+
+=== tiny_synthetic_2M_sm_base  [OK]
+  [ok] 필수 필드 22개 모두 존재
+  [ok] eff_batch 1024 == mb*accum*seq 1024
+  [ok] tokens 30720 == steps*eff_batch 30720
+  [ok] M(tokens_per_microbatch) 512 == mb*seq 512
+  [ok] deploy_mb 0.9440 == parts 합 0.9440
+  [ok] VRAM peak reserved 0.363GB (alloc 0.298GB)
+  [ok] seed = 1337 (기대 1337)
+  [ok] sparse34 = False (기대 False)
+  [ok] anneal_end = 0.6 (기대 0.6)
+  [ok] grad_ckpt = True (기대 True)
+
+=== tiny_synthetic_2M_sm_kd  [OK]
+  [ok] 필수 필드 22개 모두 존재
+  [ok] eff_batch 1024 == mb*accum*seq 1024
+  [ok] tokens 30720 == steps*eff_batch 30720
+  [ok] M(tokens_per_microbatch) 512 == mb*seq 512
+  [ok] deploy_mb 0.8639 == parts 합 0.8639
+  [ok] VRAM peak reserved 0.709GB (alloc 0.603GB)
+  [ok] kd = True (기대 True)
+  [ok] init_from = True (기대 True)
+  [ok] kd_every = 4 (기대 4)
+
+=== tiny_synthetic_2M_sm_nockpt  [OK]
+  [ok] 필수 필드 22개 모두 존재
+  [ok] eff_batch 1024 == mb*accum*seq 1024
+  [ok] tokens 30720 == steps*eff_batch 30720
+  [ok] M(tokens_per_microbatch) 512 == mb*seq 512
+  [ok] deploy_mb 0.9440 == parts 합 0.9440
+  [ok] VRAM peak reserved 0.396GB (alloc 0.343GB)
+  [ok] grad_ckpt = False (기대 False)
+
+=== tiny_synthetic_2M_sm_s34  [OK]
+  [ok] 필수 필드 22개 모두 존재
+  [ok] eff_batch 1024 == mb*accum*seq 1024
+  [ok] tokens 30720 == steps*eff_batch 30720
+  [ok] M(tokens_per_microbatch) 512 == mb*seq 512
+  [ok] deploy_mb 0.8459 == parts 합 0.8459
+  [ok] VRAM peak reserved 0.363GB (alloc 0.298GB)
+  [ok] sparse34 = True (기대 True)
+  [ok] bpw = 1.25 (기대 1.25)
+
+=== tiny_synthetic_2M_sm_sched  [OK]
+  [ok] 필수 필드 22개 모두 존재
+  [ok] eff_batch 1024 == mb*accum*seq 1024
+  [ok] tokens 30720 == steps*eff_batch 30720
+  [ok] M(tokens_per_microbatch) 512 == mb*seq 512
+  [ok] deploy_mb 0.9440 == parts 합 0.9440
+  [ok] VRAM peak reserved 0.363GB (alloc 0.298GB)
+  [ok] anneal_end = 0.8 (기대 0.8)
+  [ok] sched = 'wsd' (기대 'wsd')
+  [ok] decay_frac = 0.2 (기대 0.2)
+
+=== tiny_synthetic_2M_sm_seed  [OK]
+  [ok] 필수 필드 22개 모두 존재
+  [ok] eff_batch 1024 == mb*accum*seq 1024
+  [ok] tokens 30720 == steps*eff_batch 30720
+  [ok] M(tokens_per_microbatch) 512 == mb*seq 512
+  [ok] deploy_mb 0.9440 == parts 합 0.9440
+  [ok] VRAM peak reserved 0.363GB (alloc 0.298GB)
+  [ok] seed = 4242 (기대 4242)
+
+============================================================
+총 에러 0건 — 0 이면 계측 계약이 지켜지고 있습니다.
+주의: 이 검사는 '필드가 기록되는가'만 본다. 값이 물리적으로 옳은지(예: VRAM 절대값)는
+      실제 장기 런과 nvidia-smi 로 1회 대조해야 한다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.0분  (2026-07-31 21:17:26)
+==============================================================================

@@ -1,0 +1,301 @@
+z:\TinyLM>run_P029_probe.bat
+============================================================
+[P029] qualitative probe
+============================================================
+
+[0] prompts and what each one checks
+
+==============================================================================
+  P029 프롬프트 5개
+==============================================================================
+
+[1] '대한민국의 수도 서울은'   (max_new=100)
+    확인: 한국어 위키 문체 + 최빈 도메인. 가장 쉬운 조건 — 여기서 무너지면 근본 문제
+
+[2] '조선 시대의 과학 기술은 세종대왕 때'   (max_new=100)
+    확인: 긴 한국어 문맥 유지. 조사·어미 연쇄와 시대/주제 관성
+
+[3] '물이 끓는 온도는 섭씨'   (max_new=60)
+    확인: 국소 사실 + 숫자 문맥. 100 이 나오면 좋고, 아니어도 '숫자 자리에 숫자'가 오는지가 관전 포인트
+
+[4] 'The Industrial Revolution began in'   (max_new=100)
+    확인: 영문 전환. 코퍼스 절반이 영문인데 문자체계를 섞지 않는지
+
+[5] '인공지능 기술의 발전은 사회에'   (max_new=100)
+    확인: 추상 개념 + 열린 문장. 반복 붕괴가 가장 잘 드러나는 조건
+
+[1/1] generating (mA_g4s34_k4 and p6d, temps 0.7 and 1.0)
+
+##############################################################################
+  P029 정성 프로브 — 기대치를 먼저 읽을 것 (계획서 P029)
+##############################################################################
+  132M 삼진 / 300M 토큰 = 파라미터당 2.3 토큰 (Chinchilla 권장의 1/9, GPT-2 의 1/130).
+  SFT 없음 → 질문에 답하거나 지시를 따르지 못한다. 사실·연도·수치는 거의 틀린다.
+  볼 것: 조사/어미 타당성 · 문자체계 일관성 · 문체 관성 · 국소 문법 · 반복 붕괴 없음.
+
+##############################################################################
+  MODEL mA_g4s34_k4  (tied)
+##############################################################################
+  후보 A: g4 + 3:4 희소 + KD k4, 11.7MB(2.64x) — 결과 012 에서 dense 와 구분 불가
+  로드 완료 — 72.9M 파라미터, device=cuda, anneal=1.0(완전 삼진)
+
+  --------------------------------------------------------------------------
+  [1] 프롬프트: 대한민국의 수도 서울은
+      확인 포인트: 한국어 위키 문체 + 최빈 도메인. 가장 쉬운 조건 — 여기서 무너지면 근본 문제
+
+      >>> temp=0.7
+      대한민국의 수도 서울은 대한민국의 수도이고, 대한민국의 수도이며, 전라북도 군산시 만안면 성산리에 있다.
+
+      같이 보기
+
+
+      대한민국의 도시The best-studied way of living here is to understand the meaning of the following data:
+      - The first one is in the first one
+      - The first one is in the first one
+      - The second one is in the second one
+      - The second one is in the second
+      - The third one is in the second
+      - The third one
+
+      >>> temp=1.0
+      대한민국의 수도 서울은 대한민국의 경기도이다.
+
+      같이 보기What does a “make-table” mean? A simple “project” for “business” is the process by which you’re given an entire list of a new item of “business” (or something) in a small number of way. Most goods are made of “make a company” and do NOT include “make a company or company” or “make it for that business.”
+      Do you want
+
+  --------------------------------------------------------------------------
+  [2] 프롬프트: 조선 시대의 과학 기술은 세종대왕 때
+      확인 포인트: 긴 한국어 문맥 유지. 조사·어미 연쇄와 시대/주제 관성
+
+      >>> temp=0.7
+      조선 시대의 과학 기술은 세종대왕 때 이 사실을 알 수 없다. 세종대왕 때 이 일을 모독한 것이다.
+
+      이 일을 한 사람은 세종대왕 때 이 일을 한 사람이 아니라 이 일을 한 사람이 이 일을 한 사람은 세종대왕 때 이 일을 한 사람이고 세종대왕 때 이 일을 한 사람은 세종대왕 때 이 일을 한 사람이고 세종대왕 때 이 일을 한 사람이고 세종대왕 때 이 일을 한 사람이고 세종대왕 때 이 일을 한 사람이고 세종대왕 때는 이 일을 한 사람이고 세종대왕 때 이 일을 한 사람
+
+      >>> temp=1.0
+      조선 시대의 과학 기술은 세종대왕 때 내려왔다. 제9대 왕종(王宗)으로 즉위하였으며, 제10대 왕종은 제40대 왕종(王宗)으로 즉위하였으며 제41대 왕종은 세종대왕으로 즉위하였다. 세종대왕 즉위에는 총 209일 중 14대 왕종으로 책봉되어, 세종왕 때 소론제도가 되던 시기는 1413년과 1414년 3월 14일, 후신인 서혜원왕이 이을성왕 때 중신임을 주장하였고, 시호를
+
+  --------------------------------------------------------------------------
+  [3] 프롬프트: 물이 끓는 온도는 섭씨
+      확인 포인트: 국소 사실 + 숫자 문맥. 100 이 나오면 좋고, 아니어도 '숫자 자리에 숫자'가 오는지가 관전 포인트
+
+      >>> temp=0.7
+      물이 끓는 온도는 섭씨보다 더 높게 녹게 된다.
+
+      각주
+
+      열매가브리엘 에베(Hameree Taggön, 1983년 7월 12일 ~ )는 미국의 축구 선수이다.
+
+      클럽 경력
+      그는 2011년 7월 15일 ~ 현재
+
+      >>> temp=1.0
+      물이 끓는 온도는 섭씨보다 더해진다.
+       내부는 파랑이고, 또한 두껍고 적갈색을 띢다.
+       내부가 불순한 경우 (유체로는 邼樹, 久製)는 항상 이어진다. 즉, 우두에 흐르는 내부는 피어
+
+  --------------------------------------------------------------------------
+  [4] 프롬프트: The Industrial Revolution began in
+      확인 포인트: 영문 전환. 코퍼스 절반이 영문인데 문자체계를 섞지 않는지
+
+      >>> temp=0.7
+      The Industrial Revolution began in 1775 by the Communist party. The Communist party was created by the Communist Party in 1772. The party was led by the Communist Party. In 1783, the Communist Party was formed. In 1785 the Communist party was formed. The Communist party was created by the Communist Party.
+      The Communist Party was created by the Communist Party.
+      The Communist Party of the Communist Party and the Party of the Communist Party was created with the Communist Party. The Communist Party was founded by the Communist Party
+
+      >>> temp=1.0
+      The Industrial Revolution began in 1796 by Sir John R. W. M. Pitt, who began the process and became the leader of the American economy. He founded the Crusade Revolution in the 1800s. By 1791 it was possible to start the revolution. He founded the Iron Crusade, which began when Franklin Roosevelt initiated the Revolution of 1862. In 1799 he established the Crusade Revolution.
+      This event ended by the end of the war. In the end the revolution was marked by the
+
+  --------------------------------------------------------------------------
+  [5] 프롬프트: 인공지능 기술의 발전은 사회에
+      확인 포인트: 추상 개념 + 열린 문장. 반복 붕괴가 가장 잘 드러나는 조건
+
+      >>> temp=0.7
+      인공지능 기술의 발전은 사회에 대한 사회적 특성과 사회적 특성과 특성과의 대목성이 증가하기 때문에, 사회적 특성은 사회에 대한 경제적 특성과 경험의 질을 가져오는 것이다.
+
+      대체적인 교육(Theatre)
+      대체적인 교육은 교육의 필요를 가져오는 것이다. 교육은 교육의 필요성을 높여주는 것이다.
+
+      대체적 교육은 교육의 필요성을 높이기 때문에 대학이나 대학에 있는 것이 가장 중요한데 반해, 교육의 필요성이 높아지는 것이다
+
+      >>> temp=1.0
+      인공지능 기술의 발전은 사회에 대한 교육은 사회공학의 주요 측면에서 평가된다. 현재 우리가 언어학 분야에 필요한 것은 매우 중요하다.
+
+      역사
+      언어적인 요소는 19세기로 거슬러 올라간다. 이는 언어의 발달을 위하여 사회적인 목적에서 가져오는 데 도움이 되는 것이다. 또한 언어나 언어에 대한 지식인적 측면에서도 많이 쓰이며, 언어, 종교, 언어, 언어에 대한 지식인 사상가들은 여러 가지 다양한 개념에서 비롯된다. 그렇다.
+
+      언어적인 요소는 교육
+
+##############################################################################
+  MODEL p6d  (dense)
+##############################################################################
+  기준선: dense, 30.9MB — 압축의 정성적 대가를 보기 위한 대조군
+  로드 완료 — 132.5M 파라미터, device=cuda, anneal=1.0(완전 삼진)
+
+  --------------------------------------------------------------------------
+  [1] 프롬프트: 대한민국의 수도 서울은
+      확인 포인트: 한국어 위키 문체 + 최빈 도메인. 가장 쉬운 조건 — 여기서 무너지면 근본 문제
+
+      >>> temp=0.7
+      대한민국의 수도 서울은 대한민국의 수도이며, 대한민국의 수도 서울특별시장, 부산광역시장이다.
+
+      외부 링크
+
+
+      대만정부
+      대만정부
+      대만By: Michael M. Gazette
+      Samuelo, a former astronomer and astronomer, is the first astronomer of the universe to see.
+      When he was four years old, he was on his way to the moon and he was the first astronomer to hear some of the mysteries of the universe. He was a
+
+      >>> temp=1.0
+      대한민국의 수도 서울은 매년 15만 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 명 중 하나이다.
+
+      문화
+      일화 화산이 약 1,000여 명. 대한민국의 국가로부터 수출을 받을 수 있는 규모는 국내에 비해, 연간 1000만명에 달하는 규모의 화산이 약 1,000백만명에 달하는 화산이 약 2,000여 명으로 증가하였으며, 현재 2,000억 원으로 늘었다.
+
+
+
+  --------------------------------------------------------------------------
+  [2] 프롬프트: 조선 시대의 과학 기술은 세종대왕 때
+      확인 포인트: 긴 한국어 문맥 유지. 조사·어미 연쇄와 시대/주제 관성
+
+      >>> temp=0.7
+      조선 시대의 과학 기술은 세종대왕 때 제자인 정종의 후궁으로 즉위했다.
+
+      각주
+
+      고려
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선
+      조선의 학력
+      고려의 저술가
+      고려의 역사가
+      조선의 시인
+      조선의 철학자
+      조선 사람
+      조선 사람
+      조선 제1공화국
+      조선 제3공화국
+      조선 광무
+      조선
+      조선 제3공화국
+      조선 제9
+
+      >>> temp=1.0
+      조선 시대의 과학 기술은 세종대왕 때 조선시대인 1488년(지조 25)에 세워졌는데, 세종시대인 태종 때 정년(1368년~1273년)에 그 공(公)을 지었다.
+
+      고려시대
+      고려말
+      고려의 승려
+      장자율천(長子徒川)This article was reviewed by the National Council on the Environment. A summary of this article provides an explanation of how changes in the structure of data will be made, followed by the way that
+
+  --------------------------------------------------------------------------
+  [3] 프롬프트: 물이 끓는 온도는 섭씨
+      확인 포인트: 국소 사실 + 숫자 문맥. 100 이 나오면 좋고, 아니어도 '숫자 자리에 숫자'가 오는지가 관전 포인트
+
+      >>> temp=0.7
+      물이 끓는 온도는 섭씨 7-9cm이다.
+
+      각주
+
+      백제의 포유류
+      칼 폰 린네가 명명한 분류군The world's largest oceanographic population is a little bit higher than that of its main oceans.
+      In the US, the biggest oceanographic population in the world is the world's largest ocean
+
+      >>> temp=1.0
+      물이 끓는 온도는 섭씨 50도보다 더 많은 양을 걸어서 발생한다.
+
+      대변항경제의 경우 약 1%에서 1% 정도(즉, 이기는 최대 12시간 정도)의 과를 내게한다.
+
+      같이 보기
+
+       고온의 간항
+
+      유효산
+      변산화
+
+
+  --------------------------------------------------------------------------
+  [4] 프롬프트: The Industrial Revolution began in
+      확인 포인트: 영문 전환. 코퍼스 절반이 영문인데 문자체계를 섞지 않는지
+
+      >>> temp=0.7
+      The Industrial Revolution began in the 19th century. The Great Depression and the United States broke into the United States in 1850.
+      A significant part of the American Revolution would be held in the United States in 1845; it was the first American Revolution.
+      The Great Depression
+      The Great Depression was a period of economic activity. The Great Depression was marked by a significant change in the economy, and the Great Depression started with an intensification of economic and economic growth.
+      The Great Depression was a period of growth in the
+
+      >>> temp=1.0
+      The Industrial Revolution began in the early 1970s; there are many other new developments in the US - including Britain, France, France, Germany, Spain, Spain, Spain, the Netherlands, Greece and the Netherlands. One in the most prominent point is the economic downturn that makes it so impressive that many industries are beginning to lose this historic high point to keep them at a steady state of financial debt.
+      There are two countries where the world's financial crisis is starting to grow. The first is the Great Ring of
+
+  --------------------------------------------------------------------------
+  [5] 프롬프트: 인공지능 기술의 발전은 사회에
+      확인 포인트: 추상 개념 + 열린 문장. 반복 붕괴가 가장 잘 드러나는 조건
+
+      >>> temp=0.7
+      인공지능 기술의 발전은 사회에 큰 영향력이 있었다.
+
+      사회적 교육과정은 교육의 이익만을 목적으로 하는 교육, 가정, 교육등의 문제점을 인식하고 교육에 필요한 교육, 교육, 교육, 그리고 다른 분야의 교육, 교육 그리고 교육에 필요한 교육 및 교육의 필요성이 필요하다는 견해를 가지고 있다.
+
+      교육은 교육의 창의에 관한 규정 없이, 교육의 자유, 교육의 이익의 자유, 교육의 자유, 교육의 자유, 교육의 자유, 교육의 자유, 교육
+
+      >>> temp=1.0
+      인공지능 기술의 발전은 사회에 있어서 많은 이창력을 갖게 되었다.
+
+      과학
+      우주에서 태어나는 사람
+      과학
+      우주철학Natalie-tanking and aka chihu (today, February 1, 1805) is an example of a group of studies trying to identify and quantify a group of people who believed the first group of people were born to a Jewish family. Noting a group may even include a single person who had been forced to be married, such as a
+
+==============================================================================
+  체크리스트 — 눈으로 채운다. 점수화하지 않는다(표본 5개는 통계가 아니다)
+==============================================================================
+  [ ] 한글 프롬프트 → 한글 유지
+  [ ] 영문 프롬프트 → 영문 유지
+  [ ] 조사·어미가 그럴듯함
+  [ ] 위키 문체 관성
+  [ ] 무한 반복 없음(temp 0.7)
+  [ ] 문자 깨짐·제어문자 없음
+
+  읽는 법
+    전부 비어 있다      → 모델이 아니라 파이프라인을 의심(토크나이저? 체크포인트?)
+    채워지지만 사실 틀림 → **정상**. 파라미터당 2.3 토큰이면 이렇게 나온다
+    mA 가 눈에 띄게 나쁨 → 압축의 정성적 대가를 처음 본 것. 기록할 값어치는 있으나
+                          표본 5개는 '인상'이고 val_loss 는 둘이 같다고 말한다
+
+  샘플링은 확률적이다 — 결론 내기 전에 여러 번 돌려 분산을 보라.
+  이 프로브는 아키텍처를 고르지 않는다. 그건 REVIEW1 과 val_loss 가 한다.
+
+================================================================
+The checklist is printed at the end of the python output. Fill it in BY EYE.
+
+  all boxes empty              -> suspect the pipeline, not the model
+  boxes filled but facts wrong -> NORMAL for 2.3 tokens per parameter
+  mA visibly worse than p6d    -> first qualitative sign of the compression cost,
+                                  but 5 prompts is an impression, not a measurement
+
+Sampling is stochastic - re-run to see the spread before concluding anything.
+This probe does NOT choose an architecture. REVIEW1 and val_loss do that.
+================================================================
+done.

@@ -1,0 +1,123 @@
+z:\TinyLM>run_P030_cachecheck.bat
+============================================================
+[P030 1.5-A] KV cache gate : bf16-on-cuda vs fp32-on-cpu
+============================================================
+
+[guard] checking whether probe_prompts.py accepts --device
+
+============================================================
+[1/2] REPRODUCE on cuda (bf16 autocast) - failure here is EXPECTED
+  This is the same run that produced test_result\014 section 8. It is here so both
+  numbers live in ONE log and nobody has to trust a remembered result.
+============================================================
+
+##############################################################################
+  P029 정성 프로브 — 기대치를 먼저 읽을 것 (계획서 P029)
+##############################################################################
+  132M 삼진 / 300M 토큰 = 파라미터당 2.3 토큰 (Chinchilla 권장의 1/9, GPT-2 의 1/130).
+  SFT 없음 → 질문에 답하거나 지시를 따르지 못한다. 사실·연도·수치는 거의 틀린다.
+  볼 것: 조사/어미 타당성 · 문자체계 일관성 · 문체 관성 · 국소 문법 · 반복 붕괴 없음.
+
+==============================================================================
+  P030 단계1 게이트 — KV 캐시 정확성 (그리디: 캐시 유/무가 완전히 같아야 한다)
+==============================================================================
+  ★이 게이트는 '로짓 동등성'이 아니라 '그리디 문자열 일치'를 본다(결과 014 §8).
+    bf16(cuda) + 자기회귀 24스텝이면 near-tie 한 번 뒤집힘이 이후 전부를 바꾼다.
+    --device cpu 로 돌리면 autocast 가 꺼져 fp32 가 되고, 정밀도 요인이 사라진다.
+    RoPE 슬라이스·SDPA 마스크는 dense 와 공유 코드이고 p6d 가 통과했으므로 이미 무죄다.
+    확정 판정은 teacher-forced 로짓 비교(scripts/diag_kvcache.py)가 한다.
+
+  --- mA_g4s34_k4 (tied)  device=cuda bf16 autocast ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 불일치 ❌ — 캐시 구현이 틀렸다  '조선 시대의 과학 기술은 세종대왕 때'
+    캐시 사용: '조선 시대의 과학 기술은 세종대왕 때인 14세기 후반의 시대가 시작되고, 세종대왕 때인 14세기 후반의 시대는 세종대왕 때인'
+    캐시 미사용: '조선 시대의 과학 기술은 세종대왕 때인 14세기 중기(世宗)의 한 사람으로, 14세기 중기(世宗)의 한 사람으로'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 불일치 ❌ — 캐시 구현이 틀렸다  'The Industrial Revolution began in'
+    캐시 사용: 'The Industrial Revolution began in the early 20th century. The first industrial revolution was the first industrial revolution in the world. The first industria'
+    캐시 미사용: 'The Industrial Revolution began in the early 20th century. The first industrial revolution was the first of the first industrial revolution in the world. The fi'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  --- mC_g8_k4 (tied)  device=cuda bf16 autocast ---
+  [캐시검증] 불일치 ❌ — 캐시 구현이 틀렸다  '대한민국의 수도 서울은'
+    캐시 사용: '대한민국의 수도 서울은 대한민국의 수도이다.\n\n역사 \n이것이 17세기 말부터 17세기까지 거슬러 올라간다.\n'
+    캐시 미사용: '대한민국의 수도 서울은 대한민국의 수도이며, 수도는 경기도 고양시 일산구 일산동에 있다.\n\n역사 \n이 건물은 17세기'
+  [캐시검증] 일치 ✅  '조선 시대의 과학 기술은 세종대왕 때'
+  [캐시검증] 불일치 ❌ — 캐시 구현이 틀렸다  '물이 끓는 온도는 섭씨'
+    캐시 사용: '물이 끓는 온도는 섭씨에 비해 더 많이 나타난다.\n\n같이 보기 \n 수염\n\n각주 \n\n수염The first time'
+    캐시 미사용: '물이 끓는 온도는 섭씨에 비해 더 많이 나타난다.\n\n같이 보기 \n 황산\n\n각주 \n\n황산\n황산\n'
+  [캐시검증] 일치 ✅  'The Industrial Revolution began in'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  --- p6d (dense)  device=cuda bf16 autocast ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 일치 ✅  '조선 시대의 과학 기술은 세종대왕 때'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 일치 ✅  'The Industrial Revolution began in'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  불일치 ❌ (device=cuda) — bf16 이므로 **아직 버그로 단정할 수 없다**. --device cpu 로 다시 돌려라.
+[INFO] mismatch on cuda - expected, this is the thing being explained
+
+============================================================
+[2/2] DECIDING RUN : same gate on cpu (fp32, autocast off)
+  THIS IS THE ONE THAT MATTERS. Read its verdict, not the one above.
+============================================================
+
+##############################################################################
+  P029 정성 프로브 — 기대치를 먼저 읽을 것 (계획서 P029)
+##############################################################################
+  132M 삼진 / 300M 토큰 = 파라미터당 2.3 토큰 (Chinchilla 권장의 1/9, GPT-2 의 1/130).
+  SFT 없음 → 질문에 답하거나 지시를 따르지 못한다. 사실·연도·수치는 거의 틀린다.
+  볼 것: 조사/어미 타당성 · 문자체계 일관성 · 문체 관성 · 국소 문법 · 반복 붕괴 없음.
+
+==============================================================================
+  P030 단계1 게이트 — KV 캐시 정확성 (그리디: 캐시 유/무가 완전히 같아야 한다)
+==============================================================================
+  ★이 게이트는 '로짓 동등성'이 아니라 '그리디 문자열 일치'를 본다(결과 014 §8).
+    bf16(cuda) + 자기회귀 24스텝이면 near-tie 한 번 뒤집힘이 이후 전부를 바꾼다.
+    --device cpu 로 돌리면 autocast 가 꺼져 fp32 가 되고, 정밀도 요인이 사라진다.
+    RoPE 슬라이스·SDPA 마스크는 dense 와 공유 코드이고 p6d 가 통과했으므로 이미 무죄다.
+    확정 판정은 teacher-forced 로짓 비교(scripts/diag_kvcache.py)가 한다.
+
+  --- mA_g4s34_k4 (tied)  device=cpu fp32(autocast off) ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 일치 ✅  '조선 시대의 과학 기술은 세종대왕 때'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 일치 ✅  'The Industrial Revolution began in'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  --- mC_g8_k4 (tied)  device=cpu fp32(autocast off) ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 일치 ✅  '조선 시대의 과학 기술은 세종대왕 때'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 일치 ✅  'The Industrial Revolution began in'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  --- p6d (dense)  device=cpu fp32(autocast off) ---
+  [캐시검증] 일치 ✅  '대한민국의 수도 서울은'
+  [캐시검증] 일치 ✅  '조선 시대의 과학 기술은 세종대왕 때'
+  [캐시검증] 일치 ✅  '물이 끓는 온도는 섭씨'
+  [캐시검증] 일치 ✅  'The Industrial Revolution began in'
+  [캐시검증] 일치 ✅  '인공지능 기술의 발전은 사회에'
+
+  전부 일치 ✅ (fp32) — 정밀도 요인 배제. 단 이것은 '증거'지 '증명'이 아니다. 확정은 scripts/diag_kvcache.py
+
+================================================================
+VERDICT : H1 NUMERICS. fp32 agrees, bf16 does not.
+
+  What this means
+    The cache and the no-cache path compute the SAME function. The disagreement on
+    cuda comes from bf16 plus two different SDPA kernels, amplified by 24 steps of
+    greedy feedback. mA fails more than p6d because mA is the more repetitive model
+    (result 013), so it sits on near-ties more often.
+
+  What this does NOT mean
+    It does NOT mean the cache is proven correct. Agreement on 5 prompts is evidence,
+    not a proof. The proof is teacher-forced logit equivalence.
+
+  NEXT, in this order
+    1. run_P030_cachegate.bat   (stage 1.5-B - the actual invariant)
+    2. run_P030_infer.bat       (stage 2 - only after 1.5-B passes)
+================================================================
+done.

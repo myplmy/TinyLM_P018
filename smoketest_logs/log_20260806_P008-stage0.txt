@@ -1,0 +1,222 @@
+[P008-0] does s=0 really cost nothing
+[guard] is --lora-decay wired into the CLI
+[1/2] tiny run WITH annealed LoRA
+
+==============================================================================
+[runlog] 2026-08-06 19:16:41  name=P008-stage0
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --lora-rank 32 --lora-decay 0.5 --tag p8gate_anneal
+==============================================================================
+[cmd] python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --lora-rank 32 --lora-decay 0.5 --tag p8gate_anneal
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  LoRA(r=32, 2bit)              0.3M       0.1 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.9M       1.0 MB
+
+
+  저장(packed, 안 B)                          1.0 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.2 MB
+  ★상주(runtime, 현 구현)                      29.1 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 1.0MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[p8gate_anneal] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=32)
+
+  step     0/30  ce 10.4012  |g| 0.79  anneal 0.00  lr 2.00e-04  335 ms/step
+  step    10/30  ce 10.3496  |g| 0.70  anneal 0.30  lr 9.14e-04  87 ms/step
+  step    20/30  ce 9.7888  |g| 0.91  anneal 1.00  lr 4.11e-04  71 ms/step
+  step    29/30  ce 9.4940  |g| 0.99  anneal 1.00  lr 1.04e-04  65 ms/step
+    >> val_loss 9.4488  ppl 12692.29  (train_ce 9.494, val-CE -0.045)
+       best 갱신 9.4488 -> tiny_synthetic_2M_p8gate_anneal_best.pt
+
+[p8gate_anneal] 최종 val_loss 9.4644  ppl 12892.16  best 9.4488@30  (4.9M, 0.1분, skip 0, VRAM 0.36GB(reserved)/0.28GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.36GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.1분  (2026-08-06 19:16:49)
+==============================================================================
+[2/2] the same with NO LoRA - memory reference
+
+==============================================================================
+[runlog] 2026-08-06 19:16:50  name=P008-stage0
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --tag p8gate_none
+==============================================================================
+[cmd] python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --tag p8gate_none
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.1 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[p8gate_none] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 10.4006  |g| 0.79  anneal 0.00  lr 2.00e-04  310 ms/step
+  step    10/30  ce 10.3575  |g| 0.69  anneal 0.30  lr 9.14e-04  70 ms/step
+  step    20/30  ce 9.8101  |g| 0.90  anneal 1.00  lr 4.11e-04  54 ms/step
+  step    29/30  ce 9.5193  |g| 0.99  anneal 1.00  lr 1.04e-04  50 ms/step
+    >> val_loss 9.4812  ppl 13111.57  (train_ce 9.519, val-CE -0.038)
+       best 갱신 9.4812 -> tiny_synthetic_2M_p8gate_none_best.pt
+
+[p8gate_none] 최종 val_loss 9.4894  ppl 13218.53  best 9.4812@30  (4.6M, 0.0분, skip 0, VRAM 0.35GB(reserved)/0.28GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.35GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.1분  (2026-08-06 19:16:56)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. the LoRA row and the total MB from the report() block of [1/2].
+  2. the same total from [2/2].
+  3. whether they match.
+
+***DO NOT READ THE LOSS.*** 30 steps of tiny on synthetic data means nothing.
+  Synthetic data is a memorisation benchmark, not a quality signal.
+
+HOW TO READ IT
+  totals match
+      -> s=0 costs nothing as accounted. Stage 1 is safe to run.
+  [1/2] total is larger
+      -> the LoRA parameters are still charged. Two options before stage 1:
+         (a) add a deployment path that reloads with lora_rank=0, or
+         (b) make mem_breakdown skip LoRA when the scale is zero.
+         (a) is honest, (b) is a lie unless the export actually drops them.
+         Pick (a). Then re-run this gate.
+
+LIMITS: tiny preset, so absolute MB values mean nothing - only the COMPARISON
+  between the two runs matters. This gate says nothing about quality.
+=================================================================
+[P008-0] does s=0 really cost nothing
+[guard] is --lora-decay wired into the CLI
+[1/2] tiny run WITH annealed LoRA
+
+==============================================================================
+[runlog] 2026-08-06 19:20:34  name=P008-stage0
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --lora-rank 32 --lora-decay 0.5 --tag p8gate_anneal
+==============================================================================
+[cmd] python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --lora-rank 32 --lora-decay 0.5 --tag p8gate_anneal
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  LoRA(r=32, 2bit)              0.3M       0.1 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.9M       1.0 MB
+
+
+  저장(packed, 안 B)                          1.0 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.2 MB
+  ★상주(runtime, 현 구현)                      29.1 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 1.0MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[p8gate_anneal] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=32)
+
+  step     0/30  ce 10.4012  |g| 0.79  anneal 0.00  lr 2.00e-04  290 ms/step
+  step    10/30  ce 10.3496  |g| 0.70  anneal 0.30  lr 9.14e-04  86 ms/step
+  step    20/30  ce 9.7888  |g| 0.91  anneal 1.00  lr 4.11e-04  72 ms/step
+  step    29/30  ce 9.4940  |g| 0.99  anneal 1.00  lr 1.04e-04  68 ms/step
+    >> val_loss 9.4488  ppl 12692.29  (train_ce 9.494, val-CE -0.045)
+       best 갱신 9.4488 -> tiny_synthetic_2M_p8gate_anneal_best.pt
+
+[p8gate_anneal] 최종 val_loss 9.4644  ppl 12892.16  best 9.4488@30  (4.9M, 0.1분, skip 0, VRAM 0.36GB(reserved)/0.28GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.36GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.1분  (2026-08-06 19:20:42)
+==============================================================================
+[2/2] the same with NO LoRA - memory reference
+
+==============================================================================
+[runlog] 2026-08-06 19:20:42  name=P008-stage0
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --tag p8gate_none
+==============================================================================
+[cmd] python run100m.py train --tiny --arch tied --data synthetic --tokens 2M --steps 30 --micro-bs 2 --accum 1 --seq 256 --lr 1e-3 --eval-every 999 --tag p8gate_none
+[data] 합성 토큰 2.0M 생성 (동작 확인용, 캐시 안 함)
+[data] train 2.0M / val 10K 토큰 저장 -> Z:\TinyLM\data_cache\synthetic_2000000
+========================================================================
+d=256 ffn=512 layers=1+4+1  MLP g=2  CLA=2  vocab=32768 E=64
+========================================================================
+  삼진 가중치                        2.5M       0.5 MB
+  임베딩(factorized)               2.1M       0.4 MB
+  기타(norm/gate/router)          0.0M       0.0 MB
+  ----------------------------------------------------
+  합계                            4.6M       0.9 MB
+
+
+  저장(packed, 안 B)                          0.9 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                         1.1 MB
+  ★상주(runtime, 현 구현)                      26.8 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 0.9MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 0.1 MB  (2회 연속 재사용)
+  토큰당 FLOPs          : 0.007 GFLOP
+  KV 캐시               : 0.8 KB/token  (3/6 층만 소유)
+    1024 ctx 0.8 MB   2048 ctx 1.5 MB
+========================================================================
+[p8gate_none] device=cuda  30step x 1K tok = 0M 토큰  (sched=cosine ema=0.0 lora_r=0)
+
+  step     0/30  ce 10.4006  |g| 0.79  anneal 0.00  lr 2.00e-04  268 ms/step
+  step    10/30  ce 10.3575  |g| 0.69  anneal 0.30  lr 9.14e-04  64 ms/step
+  step    20/30  ce 9.8101  |g| 0.90  anneal 1.00  lr 4.11e-04  52 ms/step
+  step    29/30  ce 9.5193  |g| 0.99  anneal 1.00  lr 1.04e-04  47 ms/step
+    >> val_loss 9.4812  ppl 13111.57  (train_ce 9.519, val-CE -0.038)
+       best 갱신 9.4812 -> tiny_synthetic_2M_p8gate_none_best.pt
+
+[p8gate_none] 최종 val_loss 9.4894  ppl 13218.53  best 9.4812@30  (4.6M, 0.0분, skip 0, VRAM 0.35GB(reserved)/0.28GB(alloc))
+[vram] M(=micro_bs×seq)=512  peak reserved 0.35GB  (nvidia-smi 표시값은 여기에 CUDA 컨텍스트 0.4~0.8GB 가 더해진다)
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.1분  (2026-08-06 19:20:48)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. the LoRA row and the total MB from the report() block of [1/2].
+  2. the same total from [2/2].
+  3. whether they match.
+
+***DO NOT READ THE LOSS.*** 30 steps of tiny on synthetic data means nothing.
+  Synthetic data is a memorisation benchmark, not a quality signal.
+
+HOW TO READ IT
+  totals match
+      -> s=0 costs nothing as accounted. Stage 1 is safe to run.
+  [1/2] total is larger
+      -> the LoRA parameters are still charged. Two options before stage 1:
+         (a) add a deployment path that reloads with lora_rank=0, or
+         (b) make mem_breakdown skip LoRA when the scale is zero.
+         (a) is honest, (b) is a lie unless the export actually drops them.
+         Pick (a). Then re-run this gate.
+
+LIMITS: tiny preset, so absolute MB values mean nothing - only the COMPARISON
+  between the two runs matters. This gate says nothing about quality.
+=================================================================

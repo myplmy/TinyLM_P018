@@ -1,0 +1,40 @@
+z:\TinyLM>run_P022_bench.bat
+============================================================
+[P022-0] FP8 vs bf16 pure-GEMM microbench
+============================================================
+
+[env] reporting torch / GPU capability first
+torch 2.10.0 cuda 13.0
+gpu NVIDIA GeForce RTX 4070 Ti SUPER
+cap (8, 9)
+has float8_e4m3fn True
+has _scaled_mm True
+
+[1/1] running scripts\bench_fp8_gemm.py
+GPU: NVIDIA GeForce RTX 4070 Ti SUPER  sm_89  torch 2.10.0
+
+shape                      M     K     N   bf16 ms    fp8 ms  speedup  bf16 TF   fp8 TF
+-------------------------------------------------------------------------------------------
+MLP gate/up  (m100)     8192   768  2048     0.318     0.195    1.63x     81.1    132.3
+MLP down     (m100)     8192  2048   768     0.341     0.171    2.00x     75.7    151.1
+Attn q/o     (m100)     8192   768   768     0.128     0.069    1.86x     75.5    140.7
+MLP gate/up  (mb12)    12288   768  2048     0.498     0.240    2.08x     77.7    161.3
+large ref    (2048^)    8192  2048  2048     0.832     0.441    1.89x     82.6    155.8
+-------------------------------------------------------------------------------------------
+판정: 우리 형상들에서 speedup 이 대체로 >1.2~1.3x 여야 P022 진행 가치. 1.0x 근방/이하면 소형모델에선 FP8도 무의미 → 음성결과로 기록하고 종료.
+주의: 여기 speedup 은 순수 GEMM 상한. 실제 학습엔 캐스팅/스케일 오버헤드가 더해져 이득은 더 작다.
+
+============================================================
+GATE DECISION RULE (read the speedup column above):
+  - mostly >1.30x   : PROCEED to P022 stage-1 (torchao float8 linear on MLP only)
+  - 1.15x ~ 1.30x  : MARGINAL. cast/scale overhead will eat it. record and defer.
+  - <1.15x          : DROP P022. record as a negative result and move on.
+
+REMEMBER: the number above is an UPPER BOUND. Real training adds per-step
+          activation cast + amax/scale elementwise work, so end-to-end is worse.
+
+ALSO CHECK: sm_89 requires CUDA 12.x and a torch build with _scaled_mm.
+            If _scaled_mm is missing or every row failed, that is an ENV result,
+            not a hardware result - record it as such before dropping P022.
+============================================================
+done.

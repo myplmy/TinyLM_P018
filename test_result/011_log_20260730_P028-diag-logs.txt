@@ -1,0 +1,137 @@
+z:\TinyLM>run_P028_diag.bat
+============================================================
+[P028-0] cache diagnosis : ko-en (control) vs ko-edu-en (suspect)
+============================================================
+
+[0] caches present
+존재하는 캐시 (하나를 --data/--tokens 로 지정, 또는 --all):
+  ko-edu-en_300000000                300.0M 토큰
+  ko-en_300000000                    300.0M 토큰
+  ko-en_600000000                    600.0M 토큰
+
+============================================================
+[1/2] CONTROL : ko-en 300M  (this one trained normally)
+============================================================
+==============================================================================
+  캐시: ko-en_300000000   데이터=ko-en  총 300.0M 토큰  (train 298.5M / val 1500K)
+==============================================================================
+  eos 토큰 id 추정 = 4
+
+[1] 문서 수  train 235,915  val 888
+    길이(토큰) 평균 1264  중위 133  p90 3704  최대 169,727
+
+[2] 문서 중복률(앞 256토큰 해시) = 2.03%   (235,915개 중 유일 231,116개)
+    최다 반복 문서 등장횟수: [427, 307, 55]
+    [OK] 중복 낮음 → H1 약화.
+
+[3] val 문서 중 train 에도 있는 것: 16/888  (1.8%)
+    [!] 누설. val 이 과소평가된다(반대 방향 오염).
+
+[4] 유니그램 JS divergence (train 전체 기준, 낮을수록 유사)
+    train 구간  1/10 : 0.01399
+    train 구간  2/10 : 0.00409
+    train 구간  3/10 : 0.00460
+    train 구간  4/10 : 0.00260
+    train 구간  5/10 : 0.00208
+    train 구간  6/10 : 0.00229
+    train 구간  7/10 : 0.00345
+    train 구간  8/10 : 0.00462
+    train 구간  9/10 : 0.00418
+    train 구간 10/10 : 0.00597
+    ** val           : 0.01758   (train 구간 최대 0.01399)
+    [~] val 이 train 구간 최대보다 크다. 경계선.
+
+[5] 한글 토큰 비율 (소스 혼합의 구간별 균일성)
+    train 구간  1/10 :  40.7%
+    train 구간  2/10 :  34.6%
+    train 구간  3/10 :  35.4%
+    train 구간  4/10 :  30.4%
+    train 구간  5/10 :  28.6%
+    train 구간  6/10 :  29.7%
+    train 구간  7/10 :  25.5%
+    train 구간  8/10 :  24.6%
+    train 구간  9/10 :  24.5%
+    train 구간 10/10 :  23.0%
+    ** val           :  26.3%   (train 범위 23.0~40.7%)
+    [OK] val 이 train 범위 안.
+
+------------------------------------------------------------------------------
+  판정 요약: [!] 가 붙은 항목이 원인 가설을 지지한다. 어느 것도 안 붙으면
+  3.14 nats 괴리는 캐시 통계로 설명되지 않으므로 다른 원인(학습 설정·풀 크기 등)을 본다.
+  ★어느 쪽이든 인과는 재학습으로만 확인된다.
+------------------------------------------------------------------------------
+
+
+============================================================
+[2/2] SUSPECT : ko-edu-en 300M  (3.14 nats train/val gap)
+============================================================
+==============================================================================
+  캐시: ko-edu-en_300000000   데이터=ko-edu-en  총 300.0M 토큰  (train 298.5M / val 1500K)
+==============================================================================
+  eos 토큰 id 추정 = 4
+
+[1] 문서 수  train 135,276  val 555
+    길이(토큰) 평균 2205  중위 122  p90 5085  최대 879,817
+
+[2] 문서 중복률(앞 256토큰 해시) = 5.69%   (135,276개 중 유일 127,578개)
+    최다 반복 문서 등장횟수: [183, 134, 75]
+    [!] 중복 5% 초과 → H1(train 중복) 지지. 반복 노출로 train 손실만 내려갈 수 있다.
+
+[3] val 문서 중 train 에도 있는 것: 1/555  (0.2%)
+    [!] 누설. val 이 과소평가된다(반대 방향 오염).
+
+[4] 유니그램 JS divergence (train 전체 기준, 낮을수록 유사)
+    train 구간  1/10 : 0.00525
+    train 구간  2/10 : 0.00472
+    train 구간  3/10 : 0.00510
+    train 구간  4/10 : 0.00479
+    train 구간  5/10 : 0.00470
+    train 구간  6/10 : 0.00528
+    train 구간  7/10 : 0.00514
+    train 구간  8/10 : 0.00497
+    train 구간  9/10 : 0.00531
+    train 구간 10/10 : 0.00573
+    ** val           : 0.05669   (train 구간 최대 0.00573)
+    [!] val 이 어떤 train 구간보다도 유별나다 → H2(val 분포 이동) 지지.
+
+[5] 한글 토큰 비율 (소스 혼합의 구간별 균일성)
+    train 구간  1/10 :  55.7%
+    train 구간  2/10 :  56.3%
+    train 구간  3/10 :  55.0%
+    train 구간  4/10 :  57.1%
+    train 구간  5/10 :  57.8%
+    train 구간  6/10 :  56.5%
+    train 구간  7/10 :  57.1%
+    train 구간  8/10 :  57.6%
+    train 구간  9/10 :  55.4%
+    train 구간 10/10 :  58.2%
+    ** val           :  62.8%   (train 범위 55.0~58.2%)
+    [!] val 의 한글 비율이 train 범위를 벗어난다 → 소스 혼합 편향.
+
+------------------------------------------------------------------------------
+  판정 요약: [!] 가 붙은 항목이 원인 가설을 지지한다. 어느 것도 안 붙으면
+  3.14 nats 괴리는 캐시 통계로 설명되지 않으므로 다른 원인(학습 설정·풀 크기 등)을 본다.
+  ★어느 쪽이든 인과는 재학습으로만 확인된다.
+------------------------------------------------------------------------------
+
+
+============================================================
+HOW TO DECIDE (compare the two reports above, item by item):
+
+  [2] duplicate rate high on ko-edu-en only   -> H1 confirmed. Rebuild the cache with
+      document-hash dedup before using it for anything.
+  [3] val-in-train leak                       -> val is optimistic, rebuild.
+  [4] val JS divergence far above every train chunk, ko-edu-en only
+                                              -> H2 confirmed. The real fix is to change
+      prepare() so val is sampled at RANDOM over documents instead of taking the tail.
+      That touches EVERY dataset, so propose it separately and get approval first.
+  [5] val Hangul ratio outside the train range -> source mixing is uneven across the stream.
+
+  NOTHING flags on ko-edu-en  -> the 3.14 nats gap is NOT explained by cache statistics.
+      Look elsewhere: pool ratio (that run had no --pool-tokens, so pool = 1x trained),
+      or the tokenizer trained on only 200k sampled docs.
+
+LIMIT: these are statistics, not causes. A clean report does not prove the data is good,
+  and a flagged report does not prove that flag caused the 3.14 nats. Only retraining does.
+============================================================
+done.

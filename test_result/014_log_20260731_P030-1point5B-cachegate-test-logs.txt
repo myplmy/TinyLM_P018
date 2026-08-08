@@ -1,0 +1,183 @@
+z:\TinyLM>run_P030_cachegate.bat
+============================================================
+[P030 1.5-B] teacher-forced logit equivalence gate
+============================================================
+
+[guard] checking whether scripts\diag_kvcache.py exists
+
+============================================================
+[1/3] HARD GATE : fp32 on cpu, tolerance 1e-3
+  All three models. mC_g8_k4 is tied but not sparse34, which separates
+  "tying plus CLA" from "sparse34" if something does fail.
+============================================================
+
+========================================================================================
+  P030 1.5-B — teacher-forced 로짓 동등성  device=cpu  fp32(autocast off)  tol=0.001
+========================================================================================
+  ★자기회귀 피드백을 끊었으므로 이 수치는 결정론적이다.
+  ★오차 패턴 읽는 법: 위치증가=RoPE / prefill 이후 균일=마스크 / tied만=CLA / 평탄 1e-6=정상
+
+  ── mA_g4s34_k4 (tied, cla_group=2, mlp_group=4, sparse34=True) ────────────────────
+    OK 대한민국의 수도 서울은             prefill 7.63e-06  decode 1.34e-05  (전반 9.06e-06 / 후반 1.34e-05)  argmax불일치 0/28
+    OK 조선 시대의 과학 기술은 세종대왕 때     prefill 6.44e-06  decode 1.05e-05  (전반 1.05e-05 / 후반 9.06e-06)  argmax불일치 0/32
+    OK 물이 끓는 온도는 섭씨             prefill 7.63e-06  decode 1.14e-05  (전반 9.54e-06 / 후반 1.14e-05)  argmax불일치 0/31
+    OK The Industrial Revolut   prefill 1.05e-05  decode 1.14e-05  (전반 1.10e-05 / 후반 1.14e-05)  argmax불일치 0/29
+    OK 인공지능 기술의 발전은 사회에         prefill 8.11e-06  decode 1.43e-05  (전반 1.43e-05 / 후반 1.05e-05)  argmax불일치 0/31
+
+  ── mC_g8_k4 (tied, cla_group=2, mlp_group=8, sparse34=False) ────────────────────
+    OK 대한민국의 수도 서울은             prefill 6.68e-06  decode 1.12e-05  (전반 1.00e-05 / 후반 1.12e-05)  argmax불일치 0/28
+    OK 조선 시대의 과학 기술은 세종대왕 때     prefill 5.72e-06  decode 1.24e-05  (전반 1.24e-05 / 후반 9.54e-06)  argmax불일치 0/32
+    OK 물이 끓는 온도는 섭씨             prefill 8.58e-06  decode 1.05e-05  (전반 9.54e-06 / 후반 1.05e-05)  argmax불일치 0/31
+    OK The Industrial Revolut   prefill 7.63e-06  decode 1.34e-05  (전반 9.54e-06 / 후반 1.34e-05)  argmax불일치 0/29
+    OK 인공지능 기술의 발전은 사회에         prefill 6.20e-06  decode 1.05e-05  (전반 8.70e-06 / 후반 1.05e-05)  argmax불일치 0/31
+
+  ── p6d (dense, cla_group=1, mlp_group=1, sparse34=False) ────────────────────
+    OK 대한민국의 수도 서울은             prefill 7.75e-06  decode 1.05e-05  (전반 1.05e-05 / 후반 9.54e-06)  argmax불일치 0/28
+    OK 조선 시대의 과학 기술은 세종대왕 때     prefill 5.72e-06  decode 9.54e-06  (전반 8.58e-06 / 후반 9.54e-06)  argmax불일치 0/32
+    OK 물이 끓는 온도는 섭씨             prefill 8.11e-06  decode 1.14e-05  (전반 9.54e-06 / 후반 1.14e-05)  argmax불일치 0/31
+    OK The Industrial Revolut   prefill 7.63e-06  decode 9.54e-06  (전반 9.54e-06 / 후반 9.54e-06)  argmax불일치 0/29
+    OK 인공지능 기술의 발전은 사회에         prefill 8.58e-06  decode 1.14e-05  (전반 8.58e-06 / 후반 1.14e-05)  argmax불일치 0/31
+
+========================================================================================
+  요약
+========================================================================================
+    모델                 arch  cla   g    s34   max|dlogit|  판정
+    --------------------------------------------------------------
+    mA_g4s34_k4        tied    2   4   True     1.431e-05  통과
+    mC_g8_k4           tied    2   8  False     1.335e-05  통과
+    p6d               dense    1   1  False     1.144e-05  통과
+    ★cla=1 인 모델(dense)만 통과하고 cla=2 가 초과하면 CLA 캐시 경로다.
+
+  ✅ 전 모델 max|Δlogit| < 0.001  — **캐시 구현 정확성 확인.** 속도 측정으로 진행 가능.
+
+============================================================
+[2/3] SAME GATE on cuda (bf16 autocast) - measures how big the precision gap is
+  Failing here is not a defect. It quantifies the headroom the old gate ignored.
+============================================================
+
+========================================================================================
+  P030 1.5-B — teacher-forced 로짓 동등성  device=cuda  bf16 autocast  tol=0.001
+========================================================================================
+  ★자기회귀 피드백을 끊었으므로 이 수치는 결정론적이다.
+  ★오차 패턴 읽는 법: 위치증가=RoPE / prefill 이후 균일=마스크 / tied만=CLA / 평탄 1e-6=정상
+  ※ cuda 는 bf16 이라 tol 을 넘는 것이 정상일 수 있다. **하드 게이트는 cpu(fp32)** 다.
+
+  ── mA_g4s34_k4 (tied, cla_group=2, mlp_group=4, sparse34=True) ────────────────────
+    !! 대한민국의 수도 서울은             prefill 1.56e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/28
+    !! 조선 시대의 과학 기술은 세종대왕 때     prefill 1.25e-01  decode 1.88e-01  (전반 1.25e-01 / 후반 1.88e-01)  argmax불일치 1/32
+    !! 물이 끓는 온도는 섭씨             prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/31
+    !! The Industrial Revolut   prefill 1.25e-01  decode 1.88e-01  (전반 1.88e-01 / 후반 1.25e-01)  argmax불일치 0/29
+    !! 인공지능 기술의 발전은 사회에         prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/31
+
+  ── mC_g8_k4 (tied, cla_group=2, mlp_group=8, sparse34=False) ────────────────────
+    !! 대한민국의 수도 서울은             prefill 1.88e-01  decode 1.88e-01  (전반 1.88e-01 / 후반 1.25e-01)  argmax불일치 1/28
+    !! 조선 시대의 과학 기술은 세종대왕 때     prefill 1.25e-01  decode 1.56e-01  (전반 1.56e-01 / 후반 1.25e-01)  argmax불일치 0/32
+    !! 물이 끓는 온도는 섭씨             prefill 1.44e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 1/31
+    !! The Industrial Revolut   prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/29
+    !! 인공지능 기술의 발전은 사회에         prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/31
+
+  ── p6d (dense, cla_group=1, mlp_group=1, sparse34=False) ────────────────────
+    !! 대한민국의 수도 서울은             prefill 1.95e-01  decode 1.56e-01  (전반 1.56e-01 / 후반 1.25e-01)  argmax불일치 0/28
+    !! 조선 시대의 과학 기술은 세종대왕 때     prefill 1.25e-01  decode 1.88e-01  (전반 1.56e-01 / 후반 1.88e-01)  argmax불일치 0/32
+    !! 물이 끓는 온도는 섭씨             prefill 1.88e-01  decode 2.19e-01  (전반 1.88e-01 / 후반 2.19e-01)  argmax불일치 0/31
+    !! The Industrial Revolut   prefill 1.25e-01  decode 1.72e-01  (전반 1.72e-01 / 후반 1.25e-01)  argmax불일치 0/29
+    !! 인공지능 기술의 발전은 사회에         prefill 1.25e-01  decode 1.56e-01  (전반 1.56e-01 / 후반 1.25e-01)  argmax불일치 0/31
+
+========================================================================================
+  요약
+========================================================================================
+    모델                 arch  cla   g    s34   max|dlogit|  판정
+    --------------------------------------------------------------
+    mA_g4s34_k4        tied    2   4   True     1.875e-01  초과
+    mC_g8_k4           tied    2   8  False     1.875e-01  초과
+    p6d               dense    1   1  False     2.188e-01  초과
+    ★cla=1 인 모델(dense)만 통과하고 cla=2 가 초과하면 CLA 캐시 경로다.
+
+  ❌ 허용오차 초과: mA_g4s34_k4, mC_g8_k4, p6d
+     단 이것은 **bf16** 이다. 하드 게이트는 `--device cpu`(fp32) 로 판정한다.
+[INFO] bf16 exceeds the fp32 tolerance - record the number, do not treat as failure
+
+============================================================
+[3/3] GREEDY divergence, REPORT ONLY, with the tie margin
+  This is the old gate, demoted. Read the top-2 gap next to each divergence.
+============================================================
+
+========================================================================================
+  P030 1.5-B — teacher-forced 로짓 동등성  device=cuda  bf16 autocast  tol=0.001
+========================================================================================
+  ★자기회귀 피드백을 끊었으므로 이 수치는 결정론적이다.
+  ★오차 패턴 읽는 법: 위치증가=RoPE / prefill 이후 균일=마스크 / tied만=CLA / 평탄 1e-6=정상
+  ※ cuda 는 bf16 이라 tol 을 넘는 것이 정상일 수 있다. **하드 게이트는 cpu(fp32)** 다.
+
+  ── mA_g4s34_k4 (tied, cla_group=2, mlp_group=4, sparse34=True) ────────────────────
+    !! 대한민국의 수도 서울은             prefill 1.56e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/28
+        그리디: 일치
+    !! 조선 시대의 과학 기술은 세종대왕 때     prefill 1.25e-01  decode 1.88e-01  (전반 1.25e-01 / 후반 1.88e-01)  argmax불일치 1/32
+        그리디: 스텝 3 에서 분기, 그 지점 top-2 간격 0.0625  → 타이브레이크(간격 < 로짓오차)
+    !! 물이 끓는 온도는 섭씨             prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/31
+        그리디: 일치
+    !! The Industrial Revolut   prefill 1.25e-01  decode 1.88e-01  (전반 1.88e-01 / 후반 1.25e-01)  argmax불일치 0/29
+        그리디: 스텝 13 에서 분기, 그 지점 top-2 간격 0.0625  → 타이브레이크(간격 < 로짓오차)
+    !! 인공지능 기술의 발전은 사회에         prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/31
+        그리디: 일치
+
+  ── mC_g8_k4 (tied, cla_group=2, mlp_group=8, sparse34=False) ────────────────────
+    !! 대한민국의 수도 서울은             prefill 1.88e-01  decode 1.88e-01  (전반 1.88e-01 / 후반 1.25e-01)  argmax불일치 1/28
+        그리디: 스텝 2 에서 분기, 그 지점 top-2 간격 0.0000  → 타이브레이크(간격 < 로짓오차)
+    !! 조선 시대의 과학 기술은 세종대왕 때     prefill 1.25e-01  decode 1.56e-01  (전반 1.56e-01 / 후반 1.25e-01)  argmax불일치 0/32
+        그리디: 일치
+    !! 물이 끓는 온도는 섭씨             prefill 1.44e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 1/31
+        그리디: 스텝 11 에서 분기, 그 지점 top-2 간격 0.0000  → 타이브레이크(간격 < 로짓오차)
+    !! The Industrial Revolut   prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/29
+        그리디: 일치
+    !! 인공지능 기술의 발전은 사회에         prefill 1.25e-01  decode 1.25e-01  (전반 1.25e-01 / 후반 1.25e-01)  argmax불일치 0/31
+        그리디: 일치
+
+  ── p6d (dense, cla_group=1, mlp_group=1, sparse34=False) ────────────────────
+    !! 대한민국의 수도 서울은             prefill 1.95e-01  decode 1.56e-01  (전반 1.56e-01 / 후반 1.25e-01)  argmax불일치 0/28
+        그리디: 일치
+    !! 조선 시대의 과학 기술은 세종대왕 때     prefill 1.25e-01  decode 1.88e-01  (전반 1.56e-01 / 후반 1.88e-01)  argmax불일치 0/32
+        그리디: 일치
+    !! 물이 끓는 온도는 섭씨             prefill 1.88e-01  decode 2.19e-01  (전반 1.88e-01 / 후반 2.19e-01)  argmax불일치 0/31
+        그리디: 일치
+    !! The Industrial Revolut   prefill 1.25e-01  decode 1.72e-01  (전반 1.72e-01 / 후반 1.25e-01)  argmax불일치 0/29
+        그리디: 일치
+    !! 인공지능 기술의 발전은 사회에         prefill 1.25e-01  decode 1.56e-01  (전반 1.56e-01 / 후반 1.25e-01)  argmax불일치 0/31
+        그리디: 일치
+
+========================================================================================
+  요약
+========================================================================================
+    모델                 arch  cla   g    s34   max|dlogit|  판정
+    --------------------------------------------------------------
+    mA_g4s34_k4        tied    2   4   True     1.875e-01  초과
+    mC_g8_k4           tied    2   8  False     1.875e-01  초과
+    p6d               dense    1   1  False     2.188e-01  초과
+    ★cla=1 인 모델(dense)만 통과하고 cla=2 가 초과하면 CLA 캐시 경로다.
+
+  ❌ 허용오차 초과: mA_g4s34_k4, mC_g8_k4, p6d
+     단 이것은 **bf16** 이다. 하드 게이트는 `--device cpu`(fp32) 로 판정한다.
+[INFO] greedy strings differ - check the tie margin before calling it a bug
+
+================================================================
+WHAT TO RECORD
+  1. fp32 max abs logit delta per model (the gate number)
+  2. bf16 max abs logit delta per model (the precision headroom)
+  3. for every greedy divergence: position, top-2 gap, and whether that gap is
+     SMALLER than the bf16 delta from line 2
+
+JUDGEMENT
+  fp32 delta under 1e-3 and argmax agreement 100 percent
+      the cache is CORRECT. Proceed to run_P030_infer.bat.
+  fp32 delta grows with position
+      RoPE offset. transformer.forward must slice [past_len : past_len+T].
+  fp32 delta uniformly large only after the prefill boundary
+      attention mask. Attention.forward needs tril(kv_len - q_len), not is_causal.
+  fp32 fine but bf16 delta larger than the observed top-2 gaps
+      the greedy mismatches are TIE-BREAKS. Keep them as report-only forever.
+
+THEN update the gate wiring
+  run_P030_infer.bat step [0/4] should call THIS script, and its CACHEBAD message must
+  stop blaming RoPE and the mask - p6d passing already cleared both.
+================================================================
+done.

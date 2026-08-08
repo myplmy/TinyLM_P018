@@ -1,0 +1,345 @@
+z:\TinyLM>run_P030_stage2B_infer.bat
+============================================================
+[P030-2B] CPU inference - first valid measurement
+============================================================
+
+[env] CPU / cache info - L3 size is what the residency claim depends on
+
+
+L2CacheSize=8192
+L3CacheSize=32768
+Name=AMD Ryzen 7 9700X 8-Core Processor
+NumberOfCores=8
+NumberOfLogicalProcessors=16
+
+
+
+
+============================================================
+[0/4] GATE : teacher-forced logit equivalence, fp32 on cpu
+  This replaces the old greedy-string gate. Deterministic, no autoregressive
+  amplification, and the error pattern localises a real bug if one appears.
+============================================================
+
+==============================================================================
+[runlog] 2026-07-31 18:06:21  name=P030-stage2B
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\diag_kvcache.py --models mA_g4s34_k4 mC_g8_k4 p6d --device cpu --tol 1e-3 --max-new 24
+==============================================================================
+
+========================================================================================
+  P030 1.5-B — teacher-forced 로짓 동등성  device=cpu  fp32(autocast off)  tol=0.001
+========================================================================================
+  ★자기회귀 피드백을 끊었으므로 이 수치는 결정론적이다.
+  ★오차 패턴 읽는 법: 위치증가=RoPE / prefill 이후 균일=마스크 / tied만=CLA / 평탄 1e-6=정상
+
+  ── mA_g4s34_k4 (tied, cla_group=2, mlp_group=4, sparse34=True) ────────────────────
+    OK 대한민국의 수도 서울은             prefill 7.63e-06  decode 1.34e-05  (전반 9.06e-06 / 후반 1.34e-05)  argmax불일치 0/28
+    OK 조선 시대의 과학 기술은 세종대왕 때     prefill 6.44e-06  decode 1.05e-05  (전반 1.05e-05 / 후반 9.06e-06)  argmax불일치 0/32
+    OK 물이 끓는 온도는 섭씨             prefill 7.63e-06  decode 1.14e-05  (전반 9.54e-06 / 후반 1.14e-05)  argmax불일치 0/31
+    OK The Industrial Revolut   prefill 1.05e-05  decode 1.14e-05  (전반 1.10e-05 / 후반 1.14e-05)  argmax불일치 0/29
+    OK 인공지능 기술의 발전은 사회에         prefill 8.11e-06  decode 1.43e-05  (전반 1.43e-05 / 후반 1.05e-05)  argmax불일치 0/31
+
+  ── mC_g8_k4 (tied, cla_group=2, mlp_group=8, sparse34=False) ────────────────────
+    OK 대한민국의 수도 서울은             prefill 6.68e-06  decode 1.12e-05  (전반 1.00e-05 / 후반 1.12e-05)  argmax불일치 0/28
+    OK 조선 시대의 과학 기술은 세종대왕 때     prefill 5.72e-06  decode 1.24e-05  (전반 1.24e-05 / 후반 9.54e-06)  argmax불일치 0/32
+    OK 물이 끓는 온도는 섭씨             prefill 8.58e-06  decode 1.05e-05  (전반 9.54e-06 / 후반 1.05e-05)  argmax불일치 0/31
+    OK The Industrial Revolut   prefill 7.63e-06  decode 1.34e-05  (전반 9.54e-06 / 후반 1.34e-05)  argmax불일치 0/29
+    OK 인공지능 기술의 발전은 사회에         prefill 6.20e-06  decode 1.05e-05  (전반 8.70e-06 / 후반 1.05e-05)  argmax불일치 0/31
+
+  ── p6d (dense, cla_group=1, mlp_group=1, sparse34=False) ────────────────────
+    OK 대한민국의 수도 서울은             prefill 7.75e-06  decode 1.05e-05  (전반 1.05e-05 / 후반 9.54e-06)  argmax불일치 0/28
+    OK 조선 시대의 과학 기술은 세종대왕 때     prefill 5.72e-06  decode 9.54e-06  (전반 8.58e-06 / 후반 9.54e-06)  argmax불일치 0/32
+    OK 물이 끓는 온도는 섭씨             prefill 8.11e-06  decode 1.14e-05  (전반 9.54e-06 / 후반 1.14e-05)  argmax불일치 0/31
+    OK The Industrial Revolut   prefill 7.63e-06  decode 9.54e-06  (전반 9.54e-06 / 후반 9.54e-06)  argmax불일치 0/29
+    OK 인공지능 기술의 발전은 사회에         prefill 8.58e-06  decode 1.14e-05  (전반 8.58e-06 / 후반 1.14e-05)  argmax불일치 0/31
+
+========================================================================================
+  요약
+========================================================================================
+    모델                 arch  cla   g    s34   max|dlogit|  판정
+    --------------------------------------------------------------
+    mA_g4s34_k4        tied    2   4   True     1.431e-05  통과
+    mC_g8_k4           tied    2   8  False     1.335e-05  통과
+    p6d               dense    1   1  False     1.144e-05  통과
+    ★cla=1 인 모델(dense)만 통과하고 cla=2 가 초과하면 CLA 캐시 경로다.
+
+  ✅ 전 모델 max|Δlogit| < 0.001  — **캐시 구현 정확성 확인.** 속도 측정으로 진행 가능.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.5분  (2026-07-31 18:06:54)
+[runlog] 로그 파일: Z:\TinyLM\test_result\log_20260731_P030-stage2B.txt
+==============================================================================
+  [OK] logit equivalence within 1e-3. Cache is correct. Speed numbers are meaningful.
+
+============================================================
+[1/4] GPU baseline, cache on vs off  (the cache speedup multiple)
+============================================================
+
+==============================================================================
+[runlog] 2026-07-31 18:06:54  name=P030-stage2B
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\bench_infer.py --device cuda --max-new 128 --reps 3 --both-cache
+==============================================================================
+============================================================================================
+  P030 추론 속도 벤치 (단계1: KV 캐시 + eos + 삼진 1회계산 반영)
+  max_new=128  reps=3(중위값)  프롬프트='대한민국의 수도 서울은'
+  캐시 모드=['on', 'off']   (off = 결과 014 조건)
+============================================================================================
+
+  device  threads            model    배포MB    캐시     tok/s   TTFT ms
+--------------------------------------------------------------------------------------------
+    cuda       기본              p6d    30.9    on     38.56      22.9
+    cuda       기본              p6d    30.9   off     41.42      23.8
+    cuda       기본         mC_g8_k4    14.9    on     42.74      17.8
+    cuda       기본         mC_g8_k4    14.9   off     48.40      20.0
+    cuda       기본      mA_g4s34_k4    11.7    on     44.14      18.2
+    cuda       기본      mA_g4s34_k4    11.7   off     46.60      20.1
+------------------------------------------------------------------------------------
+
+★핵심 질문: 메모리를 줄이면 CPU 추론이 빨라지는가?
+
+  [cuda] 기준 = p6d(30.9MB) 38.56 tok/s
+    mC_g8_k4          14.9MB    42.74 tok/s  =  1.11x (메모리는 2.07x 작음)
+    mA_g4s34_k4       11.7MB    44.14 tok/s  =  1.14x (메모리는 2.64x 작음)
+
+  해석: 속도비 ≈ 메모리비 면 '메모리→속도 전이'가 성립.
+        속도비 ≈ 1.0 이면 전이가 없다 → 5비트 패킹 커널(P030 단계3)이 필요하다는 근거.
+
+★캐시 이득(같은 모델, on/off):
+    [cuda t0] p6d              off  41.42 -> on  38.56 tok/s =  0.93x
+    [cuda t0] mC_g8_k4         off  48.40 -> on  42.74 tok/s =  0.88x
+    [cuda t0] mA_g4s34_k4      off  46.60 -> on  44.14 tok/s =  0.95x
+
+★한계: 삼진은 dequant 후 GEMM(저장≠실행 크기 — 실행시 메모리는 P034) /
+        Windows CPU 측정은 노이즈 큼(중위값 사용, 1~2% 차이는 읽지 않는다) /
+        batch 1 단일요청. 서버 처리량은 다른 주제다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 1.3분  (2026-07-31 18:08:11)
+[runlog] 로그 파일: Z:\TinyLM\test_result\log_20260731_P030-stage2B.txt
+==============================================================================
+
+============================================================
+[2/4] CPU single thread - the most realistic edge number
+  THIS IS THE HEADLINE NUMBER of the whole project. Record it carefully.
+============================================================
+
+==============================================================================
+[runlog] 2026-07-31 18:08:12  name=P030-stage2B
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\bench_infer.py --device cpu --threads 1 --max-new 128 --reps 3 --both-cache
+==============================================================================
+============================================================================================
+  P030 추론 속도 벤치 (단계1: KV 캐시 + eos + 삼진 1회계산 반영)
+  max_new=128  reps=3(중위값)  프롬프트='대한민국의 수도 서울은'
+  캐시 모드=['on', 'off']   (off = 결과 014 조건)
+============================================================================================
+
+  device  threads            model    배포MB    캐시     tok/s   TTFT ms
+--------------------------------------------------------------------------------------------
+     cpu        1              p6d    30.9    on     31.29      52.8
+     cpu        1              p6d    30.9   off      4.86      53.3
+     cpu        1         mC_g8_k4    14.9    on     34.67      47.1
+     cpu        1         mC_g8_k4    14.9   off      5.00      45.6
+     cpu        1      mA_g4s34_k4    11.7    on     32.10      46.6
+     cpu        1      mA_g4s34_k4    11.7   off      4.96      50.3
+------------------------------------------------------------------------------------
+
+★핵심 질문: 메모리를 줄이면 CPU 추론이 빨라지는가?
+
+  [cpu] 기준 = p6d(30.9MB) 31.29 tok/s
+    mC_g8_k4          14.9MB    34.67 tok/s  =  1.11x (메모리는 2.07x 작음)
+    mA_g4s34_k4       11.7MB    32.10 tok/s  =  1.03x (메모리는 2.64x 작음)
+
+  해석: 속도비 ≈ 메모리비 면 '메모리→속도 전이'가 성립.
+        속도비 ≈ 1.0 이면 전이가 없다 → 5비트 패킹 커널(P030 단계3)이 필요하다는 근거.
+
+★캐시 이득(같은 모델, on/off):
+    [cpu t1] p6d              off   4.86 -> on  31.29 tok/s =  6.44x
+    [cpu t1] mC_g8_k4         off   5.00 -> on  34.67 tok/s =  6.94x
+    [cpu t1] mA_g4s34_k4      off   4.96 -> on  32.10 tok/s =  6.47x
+
+★한계: 삼진은 dequant 후 GEMM(저장≠실행 크기 — 실행시 메모리는 P034) /
+        Windows CPU 측정은 노이즈 큼(중위값 사용, 1~2% 차이는 읽지 않는다) /
+        batch 1 단일요청. 서버 처리량은 다른 주제다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 6.1분  (2026-07-31 18:14:17)
+[runlog] 로그 파일: Z:\TinyLM\test_result\log_20260731_P030-stage2B.txt
+==============================================================================
+
+============================================================
+[3/4] CPU thread sweep (cache on only - off is characterised above)
+============================================================
+
+==============================================================================
+[runlog] 2026-07-31 18:14:17  name=P030-stage2B
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\bench_infer.py --device cpu --threads 2 4 8 --max-new 128 --reps 3
+==============================================================================
+============================================================================================
+  P030 추론 속도 벤치 (단계1: KV 캐시 + eos + 삼진 1회계산 반영)
+  max_new=128  reps=3(중위값)  프롬프트='대한민국의 수도 서울은'
+  캐시 모드=['on']   (off = 결과 014 조건)
+============================================================================================
+
+  device  threads            model    배포MB    캐시     tok/s   TTFT ms
+--------------------------------------------------------------------------------------------
+     cpu        2              p6d    30.9    on     30.07      49.5
+     cpu        2         mC_g8_k4    14.9    on     33.51      44.3
+     cpu        2      mA_g4s34_k4    11.7    on     31.37      45.6
+     cpu        4              p6d    30.9    on     30.34      31.1
+     cpu        4         mC_g8_k4    14.9    on     34.19      26.3
+     cpu        4      mA_g4s34_k4    11.7    on     32.46      28.5
+     cpu        8              p6d    30.9    on     30.03      30.8
+     cpu        8         mC_g8_k4    14.9    on     34.75      25.4
+     cpu        8      mA_g4s34_k4    11.7    on     31.05      26.6
+------------------------------------------------------------------------------------
+
+★핵심 질문: 메모리를 줄이면 CPU 추론이 빨라지는가?
+
+  [cpu] 기준 = p6d(30.9MB) 30.07 tok/s
+    p6d               30.9MB    30.34 tok/s  =  1.01x (메모리는 1.00x 작음)
+    p6d               30.9MB    30.03 tok/s  =  1.00x (메모리는 1.00x 작음)
+    mC_g8_k4          14.9MB    33.51 tok/s  =  1.11x (메모리는 2.07x 작음)
+    mC_g8_k4          14.9MB    34.19 tok/s  =  1.14x (메모리는 2.07x 작음)
+    mC_g8_k4          14.9MB    34.75 tok/s  =  1.16x (메모리는 2.07x 작음)
+    mA_g4s34_k4       11.7MB    31.37 tok/s  =  1.04x (메모리는 2.64x 작음)
+    mA_g4s34_k4       11.7MB    32.46 tok/s  =  1.08x (메모리는 2.64x 작음)
+    mA_g4s34_k4       11.7MB    31.05 tok/s  =  1.03x (메모리는 2.64x 작음)
+
+  해석: 속도비 ≈ 메모리비 면 '메모리→속도 전이'가 성립.
+        속도비 ≈ 1.0 이면 전이가 없다 → 5비트 패킹 커널(P030 단계3)이 필요하다는 근거.
+
+★한계: 삼진은 dequant 후 GEMM(저장≠실행 크기 — 실행시 메모리는 P034) /
+        Windows CPU 측정은 노이즈 큼(중위값 사용, 1~2% 차이는 읽지 않는다) /
+        batch 1 단일요청. 서버 처리량은 다른 주제다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 2.6분  (2026-07-31 18:16:55)
+[runlog] 로그 파일: Z:\TinyLM\test_result\log_20260731_P030-stage2B.txt
+==============================================================================
+
+============================================================
+[4/4] eos stop, qualitative - does generation END instead of running on
+============================================================
+
+==============================================================================
+[runlog] 2026-07-31 18:16:55  name=P030-stage2B
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\probe_prompts.py --models mA_g4s34_k4 --temps 0.7
+==============================================================================
+
+##############################################################################
+  P029 정성 프로브 — 기대치를 먼저 읽을 것 (계획서 P029)
+##############################################################################
+  132M 삼진 / 300M 토큰 = 파라미터당 2.3 토큰 (Chinchilla 권장의 1/9, GPT-2 의 1/130).
+  SFT 없음 → 질문에 답하거나 지시를 따르지 못한다. 사실·연도·수치는 거의 틀린다.
+  볼 것: 조사/어미 타당성 · 문자체계 일관성 · 문체 관성 · 국소 문법 · 반복 붕괴 없음.
+
+##############################################################################
+  MODEL mA_g4s34_k4  (tied)
+##############################################################################
+  로드 완료 — 72.9M 파라미터, device=cuda, anneal=1.0(완전 삼진)
+
+  --------------------------------------------------------------------------
+  [1] 프롬프트: 대한민국의 수도 서울은
+      확인 포인트: 한국어 위키 문체 + 최빈 도메인. 가장 쉬운 조건 — 여기서 무너지면 근본 문제
+
+      >>> temp=0.7
+      대한민국의 수도 서울은 '한국역사대'를 대표하는 한 사람이었다.
+
+      외부 링크
+       한국역사대 공식 홈페이지
+
+      대한민국의 도시
+
+      경기도의 군
+      대한민국의 동
+
+  --------------------------------------------------------------------------
+  [2] 프롬프트: 조선 시대의 과학 기술은 세종대왕 때
+      확인 포인트: 긴 한국어 문맥 유지. 조사·어미 연쇄와 시대/주제 관성
+
+      >>> temp=0.7
+      조선 시대의 과학 기술은 세종대왕 때 쓰인 것이다.
+
+      《조선왕조실록》은 조선 태종 때의 무신이다.
+
+      조선 태조실록은 조선 태종 때 쓰인 것이다. 조선의 개국공신인 공민왕의 손자이자 태종 때인 1492년(중종 3)에 임진왜란을 발발한 후 조선 태종 때 문하부사(門下府使)로 승진되었다가 1492년(중종 3)에 추봉되었다.
+
+      조선 태조실록은 고려의 개국공신으로서 개국공신이었던 고려의 개국공신으로 고려
+
+  --------------------------------------------------------------------------
+  [3] 프롬프트: 물이 끓는 온도는 섭씨
+      확인 포인트: 국소 사실 + 숫자 문맥. 100 이 나오면 좋고, 아니어도 '숫자 자리에 숫자'가 오는지가 관전 포인트
+
+      >>> temp=0.7
+      물이 끓는 온도는 섭씨 5가량, 온도에서 가장 낮은 온도를 가지고 있다. 온도는 6.9°A이다. 온도와 온도에 비해서는 온도와 온도에서 매우 다르다. 온도는 온도에서 가장 낮은 온도와 온도를 지니고 있으며, 온도는 온도에서 가장 낮은 온도에서 가장 낮은 온도로
+
+  --------------------------------------------------------------------------
+  [4] 프롬프트: The Industrial Revolution began in
+      확인 포인트: 영문 전환. 코퍼스 절반이 영문인데 문자체계를 섞지 않는지
+
+      >>> temp=0.7
+      The Industrial Revolution began in the early eighteenth century. In 1753, it was adopted by the French authorities in the United States and was formally the founding director of the Industrial Revolution.
+      Lawrence, the first of the American Congress founded in 1824, was the first in the United States to be the first in the United States. In 1838, the first New York City Council was formed. The New Jersey Council of the United States was the first of the United States to be established in the United States.
+
+  --------------------------------------------------------------------------
+  [5] 프롬프트: 인공지능 기술의 발전은 사회에
+      확인 포인트: 추상 개념 + 열린 문장. 반복 붕괴가 가장 잘 드러나는 조건
+
+      >>> temp=0.7
+      인공지능 기술의 발전은 사회에 따라 조직화되고, 사회가 경영이 가능한 모든 분야에서는 각 분야마다 달라지고, 이를 통해 사회가 기업의 경영이 가능한 사회는 기업의 경영이 아니라, 경영이 가능한 기업의 경영은 기업의 경영과 경영의 자유와 같은 여러 가지의 영향을 받을 수 있는 것이다.
+
+      그러나, 기업은 기업의 경영이 기업의 경영과 경영에 의해 경영의 자유와 같은 자금의 경영에 의해 경영의 자유를 획득하며, 기업과 경영의 자유는 기업의 경영에 의해 경영의
+
+==============================================================================
+  체크리스트 — 눈으로 채운다. 점수화하지 않는다(표본 5개는 통계가 아니다)
+==============================================================================
+  [ ] 한글 프롬프트 → 한글 유지
+  [ ] 영문 프롬프트 → 영문 유지
+  [ ] 조사·어미가 그럴듯함
+  [ ] 위키 문체 관성
+  [ ] 무한 반복 없음(temp 0.7)
+  [ ] 문자 깨짐·제어문자 없음
+
+  읽는 법
+    전부 비어 있다      → 모델이 아니라 파이프라인을 의심(토크나이저? 체크포인트?)
+    채워지지만 사실 틀림 → **정상**. 파라미터당 2.3 토큰이면 이렇게 나온다
+    mA 가 눈에 띄게 나쁨 → 압축의 정성적 대가를 처음 본 것. 기록할 값어치는 있으나
+                          표본 5개는 '인상'이고 val_loss 는 둘이 같다고 말한다
+
+  샘플링은 확률적이다 — 결론 내기 전에 여러 번 돌려 분산을 보라.
+  이 프로브는 아키텍처를 고르지 않는다. 그건 REVIEW1 과 val_loss 가 한다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.2분  (2026-07-31 18:17:09)
+[runlog] 로그 파일: Z:\TinyLM\test_result\log_20260731_P030-stage2B.txt
+==============================================================================
+
+================================================================
+WHAT TO RECORD  (label all of it "stage 2B")
+  1. CPU model / cores / L3 from the wmic block
+  2. the cache on-vs-off multiple, per device
+  3. tok/s and TTFT per (device, threads, model), cache ON
+  4. whether [4/4] output STOPS at a document end
+
+HOW TO READ IT - and what result 016 already tells us to expect
+  Storage MB is NOT the working set. Measured resident memory is
+    p6d 978.0   mC_g8_k4 451.5   mA_g4s34_k4 523.5   MB
+  so if speed tracks memory at all, it should track THAT order, which puts mC
+  ahead of mA. If instead speed tracks storage MB (mA fastest), something other
+  than memory is driving it and we have another measurement to distrust.
+
+  speed ratio near the RESIDENT ratio -> memory-to-speed transfer is real
+  speed ratio near 1.0                -> no transfer. Weights are dequantised to
+      fp32 before the GEMM. That is a NEGATIVE RESULT, not a failure, and it is
+      exactly what P034 stages 2-4 exist to fix.
+
+  mA slower than mC is EXPECTED now: mA has 17 percent more unique ternary
+  parameters (64.29M vs 54.85M). The old 26 percent deficit versus dense was the
+  mask-rebuild artefact from result 014 and should be GONE after freeze_quant.
+  If it is still there, the artefact was not the whole story - say so.
+
+LIMITS: batch 1 single request / Windows CPU timing is noisy (median of 3) /
+  storage MB is not resident MB (result 016) / do NOT compare these numbers to the
+  invalid stage-2 table in result 014 section 1 except to quantify how wrong it was.
+================================================================
+done.

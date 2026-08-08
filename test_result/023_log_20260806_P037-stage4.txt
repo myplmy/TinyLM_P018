@@ -1,0 +1,325 @@
+[P037-4] force source exhaustion - does the L4 warning fire
+[guard] cli.py call-keyword sanity
+[1/2] ko alone, 400M requested from a roughly 300M source
+
+==============================================================================
+[runlog] 2026-08-06 22:18:27  name=P037-stage4
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py prepare --data ko --tokens 400M --exact-cache
+==============================================================================
+[cmd] python run100m.py prepare --data ko --tokens 400M --exact-cache
+[data] 정확 캐시(ko_400000000) 없음 → 정확히 그 크기로 신규 생성(상위호환 무시)
+[tok] 32768 BPE 학습 중 (표본 20만 문서)...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+
+
+[tok] 저장 Z:\TinyLM\data_cache\tok-ko-32768.json
+     0.0M / 400M  (0K tok/s)
+    10.0M / 400M  (367K tok/s)
+    10.0M / 400M  (367K tok/s)
+    10.0M / 400M  (367K tok/s)
+    10.0M / 400M  (367K tok/s)
+    15.0M / 400M  (440K tok/s)
+    20.0M / 400M  (485K tok/s)
+    20.0M / 400M  (485K tok/s)
+    20.0M / 400M  (485K tok/s)
+    30.0M / 400M  (545K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    35.0M / 400M  (564K tok/s)
+    40.0M / 400M  (579K tok/s)
+    40.0M / 400M  (579K tok/s)
+    40.0M / 400M  (579K tok/s)
+    45.0M / 400M  (591K tok/s)
+    45.0M / 400M  (591K tok/s)
+    70.0M / 400M  (622K tok/s)
+    70.0M / 400M  (622K tok/s)
+    70.0M / 400M  (622K tok/s)
+    70.0M / 400M  (622K tok/s)
+    90.0M / 400M  (643K tok/s)
+    90.0M / 400M  (643K tok/s)
+    90.0M / 400M  (643K tok/s)
+    95.0M / 400M  (648K tok/s)
+    95.0M / 400M  (648K tok/s)
+    95.0M / 400M  (648K tok/s)
+    95.0M / 400M  (648K tok/s)
+    95.0M / 400M  (648K tok/s)
+    95.0M / 400M  (648K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   100.0M / 400M  (652K tok/s)
+   105.0M / 400M  (658K tok/s)
+   105.0M / 400M  (658K tok/s)
+   105.0M / 400M  (658K tok/s)
+   105.0M / 400M  (658K tok/s)
+   105.0M / 400M  (658K tok/s)
+   105.0M / 400M  (658K tok/s)
+   105.0M / 400M  (658K tok/s)
+   115.0M / 400M  (664K tok/s)
+   120.0M / 400M  (668K tok/s)
+   120.0M / 400M  (668K tok/s)
+   120.0M / 400M  (668K tok/s)
+   120.0M / 400M  (668K tok/s)
+   120.0M / 400M  (668K tok/s)
+   120.0M / 400M  (668K tok/s)
+   125.0M / 400M  (671K tok/s)
+   125.0M / 400M  (671K tok/s)
+   125.0M / 400M  (671K tok/s)
+   125.0M / 400M  (671K tok/s)
+   125.0M / 400M  (671K tok/s)
+   130.0M / 400M  (674K tok/s)
+   130.0M / 400M  (674K tok/s)
+   135.0M / 400M  (676K tok/s)
+   135.0M / 400M  (676K tok/s)
+   135.0M / 400M  (676K tok/s)
+   135.0M / 400M  (676K tok/s)
+   140.0M / 400M  (678K tok/s)
+   140.0M / 400M  (678K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   145.0M / 400M  (649K tok/s)
+   150.0M / 400M  (651K tok/s)
+   155.0M / 400M  (653K tok/s)
+   155.0M / 400M  (653K tok/s)
+   155.0M / 400M  (653K tok/s)
+   155.0M / 400M  (653K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   160.0M / 400M  (656K tok/s)
+   165.0M / 400M  (658K tok/s)
+   165.0M / 400M  (658K tok/s)
+   165.0M / 400M  (658K tok/s)
+   170.0M / 400M  (658K tok/s)
+   170.0M / 400M  (658K tok/s)
+   170.0M / 400M  (658K tok/s)
+   175.0M / 400M  (658K tok/s)
+   175.0M / 400M  (658K tok/s)
+   175.0M / 400M  (658K tok/s)
+   175.0M / 400M  (658K tok/s)
+   180.0M / 400M  (659K tok/s)
+   180.0M / 400M  (659K tok/s)
+   180.0M / 400M  (659K tok/s)
+   180.0M / 400M  (659K tok/s)
+   180.0M / 400M  (659K tok/s)
+   180.0M / 400M  (659K tok/s)
+   180.0M / 400M  (659K tok/s)
+   185.0M / 400M  (660K tok/s)
+   185.0M / 400M  (660K tok/s)
+   185.0M / 400M  (660K tok/s)
+   185.0M / 400M  (660K tok/s)
+   190.0M / 400M  (661K tok/s)
+   190.0M / 400M  (661K tok/s)
+   190.0M / 400M  (661K tok/s)
+   190.0M / 400M  (661K tok/s)
+   190.0M / 400M  (661K tok/s)
+   190.0M / 400M  (661K tok/s)
+   190.0M / 400M  (661K tok/s)
+   205.0M / 400M  (664K tok/s)
+   205.0M / 400M  (664K tok/s)
+   205.0M / 400M  (664K tok/s)
+   210.0M / 400M  (665K tok/s)
+   210.0M / 400M  (665K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   220.0M / 400M  (590K tok/s)
+   225.0M / 400M  (593K tok/s)
+   225.0M / 400M  (593K tok/s)
+   230.0M / 400M  (548K tok/s)
+   230.0M / 400M  (548K tok/s)
+   230.0M / 400M  (548K tok/s)
+   230.0M / 400M  (548K tok/s)
+   230.0M / 400M  (548K tok/s)
+   235.0M / 400M  (551K tok/s)
+   235.0M / 400M  (551K tok/s)
+   235.0M / 400M  (551K tok/s)
+   235.0M / 400M  (551K tok/s)
+   235.0M / 400M  (551K tok/s)
+   235.0M / 400M  (551K tok/s)
+   235.0M / 400M  (551K tok/s)
+   240.0M / 400M  (554K tok/s)
+   240.0M / 400M  (554K tok/s)
+   240.0M / 400M  (554K tok/s)
+   240.0M / 400M  (554K tok/s)
+   240.0M / 400M  (554K tok/s)
+   240.0M / 400M  (554K tok/s)
+   245.0M / 400M  (557K tok/s)
+   245.0M / 400M  (557K tok/s)
+   245.0M / 400M  (557K tok/s)
+   245.0M / 400M  (557K tok/s)
+   245.0M / 400M  (557K tok/s)
+   245.0M / 400M  (557K tok/s)
+   245.0M / 400M  (557K tok/s)
+   250.0M / 400M  (560K tok/s)
+   250.0M / 400M  (560K tok/s)
+   250.0M / 400M  (560K tok/s)
+   255.0M / 400M  (561K tok/s)
+   255.0M / 400M  (561K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   260.0M / 400M  (563K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   265.0M / 400M  (566K tok/s)
+   270.0M / 400M  (568K tok/s)
+   270.0M / 400M  (568K tok/s)
+   270.0M / 400M  (568K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+   280.0M / 400M  (572K tok/s)
+[mix] ★경고: 소스 고갈 — wikimedia/wikipedia 가 280.6M 토큰 지점에서 소진됐다.
+[mix] ★이 지점 이후 **믹스 비율이 바뀐다**(남은 소스가 조용히 채운다). L4 결함, 결과 023 §9.3.
+[mix] ★그리고 val 은 **스트림 말미 0.5%** 라 **val 셋의 구성도 함께 바뀐다**(L5, 결과 006 §5.3).
+[data] ★★경고: 요청 400.0M 인데 **280.6M 만** 만들어졌다 — 전 소스 고갈(L4).
+[data] ★디렉터리 이름(ko_400000000)과 실제 토큰 수가 다르다. meta.json 의 'tokens' 가 정본이다.
+[mix] 소스별 실제 비율 (설정 비율은 DATASETS 의 ratio)
+      wikimedia/wikipedia                    설정 1.00 | 문서 100.0% | ★토큰 100.0% (280.6M)
+      ★문서 비율과 토큰 비율이 다른 이유: rng 가 **문서**를 고르는데 소스마다 문서 길이가 다르다(L1).
+      ★★L4: 아래 소스가 고갈됐다 — **이 캐시의 믹스는 풀 크기의 함수다.**
+         wikimedia/wikipedia                    고갈 지점 280.6M 토큰
+      ★다른 풀 크기로 만든 캐시와 **비교하지 말 것**(결과 006 §5.4).
+[bpb] bytes_per_token  스트림 4.7357 / ★val 4.8271 (차이 +1.9%)
+[data] train 279.2M / val 1403K 토큰 저장 -> Z:\TinyLM\data_cache\ko_400000000
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 10.7분  (2026-08-06 22:29:06)
+==============================================================================
+[2/2] read back what was actually written
+
+==============================================================================
+[runlog] 2026-08-06 22:29:06  name=P037-stage4
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\diag_val_lang.py --data ko --pools 400M
+==============================================================================
+================================================================================================
+  캐시 언어 구성 진단 — data=ko  표본 200,000 토큰/구간
+================================================================================================
+  ★val 은 스트림 **말미 0.5%** 다. 소스가 고갈되면(L4) 말미가 남은 소스로 채워지므로
+    **풀 크기가 val 의 언어 구성을 바꾼다**(결과 006 §5.3). 그러면 풀이 다른 런의
+    val_loss·bpb 비교는 **무효**다 — 시험지가 다르기 때문이다.
+  ⚠️ '한글 비율' 은 문자 기준이지 '한국어 토큰 비율' 이 아니다. **캐시 간 비교로만** 읽는다.
+
+  캐시                             val토큰   train앞   train중  train90%     ★VAL  val B/tok  meta B/tok      오차
+  --------------------------------------------------------------------------------------------
+  ko_400000000                    1.4M    61.0%    55.9%     57.1%    56.5%     4.8439      4.7357   +2.3%
+
+================================================================================================
+  ★판정
+================================================================================================
+  val 한글 비율 범위 : 56.5% ~ 56.5%   (폭 0.0%p)
+  → ✅ val 구성은 풀 크기에 걸쳐 안정적이다.
+  bpb 오차(스트림 B/tok 을 val 에 적용) 최대 2.3% = bpb 로 약 0.0286  (분해능 0.008)
+  → ⚠️ **분해능을 넘는다.** `bytes_per_token_val`(2026-08-06 신설)로 보정할 것.
+
+  ★L4 고갈 기록(있는 캐시만 — 2026-08-06 이후 빌드)
+    ko_400000000               토큰비율  wikipedia 100.0%
+    ko_400000000               ★고갈  {'0': 280640021}
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.0분  (2026-08-06 22:29:09)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. the [mix] exhaustion warning text and the token count it names.
+     That number is the ACTUAL size of our Korean corpus - it is the single
+     most important figure for P041 and it has never been measured directly.
+  2. the [data] size warning: requested 400M, actually written how much.
+  3. mix_exhausted from the readback.
+
+HOW TO READ IT
+  warnings fire and the count is around 300M
+      -> L4 detection works AND we now know the Korean corpus size. Feed it
+         into P041 section 5 stage 0 as the baseline to beat.
+  warnings do not fire
+      -> the callback is not wired. The fix is cosmetic. Fix it before
+         trusting any future [mix] block.
+  the count is much larger than 300M
+      -> then ko-en's 300.2M ceiling came from the MIXER, not the source,
+         and P041's premise needs rechecking. That would be good news.
+
+LIMITS: ko is wikipedia only - ko-edu-en uses a different Korean source whose
+  size is still unmeasured / this builds a cache we do not train on, so it is
+  pure diagnostic cost / streaming order is fixed, so the count is repeatable.
+=================================================================

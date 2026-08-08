@@ -1,0 +1,179 @@
+[P022B stage 0] FP8 E4M3 numerical gate. No training. Nothing written to runs.
+[1/2] part A : _scaled_mm capability probe (seconds, no checkpoint needed)
+
+==============================================================================
+[runlog] 2026-08-07 18:43:40  name=P022B_stage0
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\diag_fp8_precision.py --probe-only
+==============================================================================
+================================================================================================
+  [A] torch._scaled_mm 이 이 GPU 에서 받는 스케일 입도 — **실제로 호출해서** 확인
+================================================================================================
+  device=cuda  sm_89  torch 2.10.0
+  ★DeepSeek-V3 section 3.3.2: K축 그룹 스케일은 '표준 FP8 GEMM 이 지원하지 않는다'.
+    우리 alpha 가 정확히 그것이므로, 아래 blockwise 행이 이 계획의 갈림길이다.
+
+  shape              M     K     N  recipe          결과                                          
+  --------------------------------------------------------------------------------------------
+  MLP gate/up     8192   768  2048  per-tensor      OK  out=(8192, 2048) torch.bfloat16         
+  MLP gate/up     8192   768  2048  rowwise         FAIL Rowwise scaling is not currently suppo 
+  MLP gate/up     8192   768  2048  blockwise 1x128 FAIL Invalid scaling configuration. - For T 
+  MLP gate/up     8192   768  2048  blockwise 128x128FAIL Invalid scaling configuration. - For T 
+  MLP down        8192  2048   768  per-tensor      OK  out=(8192, 768) torch.bfloat16          
+  MLP down        8192  2048   768  rowwise         FAIL Rowwise scaling is not currently suppo 
+  MLP down        8192  2048   768  blockwise 1x128 FAIL Invalid scaling configuration. - For T 
+  MLP down        8192  2048   768  blockwise 128x128FAIL Invalid scaling configuration. - For T 
+  Attn q/o        8192   768   768  per-tensor      OK  out=(8192, 768) torch.bfloat16          
+  Attn q/o        8192   768   768  rowwise         FAIL Rowwise scaling is not currently suppo 
+  Attn q/o        8192   768   768  blockwise 1x128 FAIL Invalid scaling configuration. - For T 
+  Attn q/o        8192   768   768  blockwise 128x128FAIL Invalid scaling configuration. - For T 
+  --------------------------------------------------------------------------------------------
+  ★읽는 법
+    blockwise 가 OK  -^ 우리 alpha 를 그대로 살릴 수 있다. 가중치 오차 0 경로가 열린다
+    rowwise 만 OK    -^ [B] per-row 행이 그대로 실현 가능한 최선이다
+    per-tensor 만 OK -^ 결과 028 이 이미 부정적(0.141~0.261 nats). 커널 자체 제작 외 길 없음
+
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.0분  (2026-08-07 18:43:42)
+==============================================================================
+[2/2] parts B to D : weight / activation / combined E4M3 round trip, common-source bpb
+
+==============================================================================
+[runlog] 2026-08-07 18:43:43  name=P022B_stage0
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\diag_fp8_precision.py --preset m100R1c --data ko-en --tokens 300M --models mC_wsd mC_g16 --max-docs 4000
+==============================================================================
+================================================================================================
+  [A] torch._scaled_mm 이 이 GPU 에서 받는 스케일 입도 — **실제로 호출해서** 확인
+================================================================================================
+  device=cuda  sm_89  torch 2.10.0
+  ★DeepSeek-V3 section 3.3.2: K축 그룹 스케일은 '표준 FP8 GEMM 이 지원하지 않는다'.
+    우리 alpha 가 정확히 그것이므로, 아래 blockwise 행이 이 계획의 갈림길이다.
+
+  shape              M     K     N  recipe          결과                                          
+  --------------------------------------------------------------------------------------------
+  MLP gate/up     8192   768  2048  per-tensor      OK  out=(8192, 2048) torch.bfloat16         
+  MLP gate/up     8192   768  2048  rowwise         FAIL Rowwise scaling is not currently suppo 
+  MLP gate/up     8192   768  2048  blockwise 1x128 FAIL Invalid scaling configuration. - For T 
+  MLP gate/up     8192   768  2048  blockwise 128x128FAIL Invalid scaling configuration. - For T 
+  MLP down        8192  2048   768  per-tensor      OK  out=(8192, 768) torch.bfloat16          
+  MLP down        8192  2048   768  rowwise         FAIL Rowwise scaling is not currently suppo 
+  MLP down        8192  2048   768  blockwise 1x128 FAIL Invalid scaling configuration. - For T 
+  MLP down        8192  2048   768  blockwise 128x128FAIL Invalid scaling configuration. - For T 
+  Attn q/o        8192   768   768  per-tensor      OK  out=(8192, 768) torch.bfloat16          
+  Attn q/o        8192   768   768  rowwise         FAIL Rowwise scaling is not currently suppo 
+  Attn q/o        8192   768   768  blockwise 1x128 FAIL Invalid scaling configuration. - For T 
+  Attn q/o        8192   768   768  blockwise 128x128FAIL Invalid scaling configuration. - For T 
+  --------------------------------------------------------------------------------------------
+  ★읽는 법
+    blockwise 가 OK  -^ 우리 alpha 를 그대로 살릴 수 있다. 가중치 오차 0 경로가 열린다
+    rowwise 만 OK    -^ [B] per-row 행이 그대로 실현 가능한 최선이다
+    per-tensor 만 OK -^ 결과 028 이 이미 부정적(0.141~0.261 nats). 커널 자체 제작 외 길 없음
+
+================================================================================================
+  [B~D] E4M3 왕복 오차 — 가중치 / 활성 / 동시
+================================================================================================
+  device=cuda  SQuAD context 4,000개  2.97 MB  seq=1024
+  ★재학습하지 않는다. 배포되는 `_wq` 와 실제 활성을 **그대로** E4M3 로 왕복시킨다.
+  ★판정은 bpb 로 한다. 가중치 상대오차는 참고값이다(품질과 단조가 아니다).
+  ⚠️ 실제 GEMM 의 **누산** 오차는 이 방법으로 안 보인다 — 실제는 더 나쁠 수 있다.
+
+  ── mC_wsd (tied)   토큰 679,424  bytes/token 4.3660
+     기준선(왕복 없음)                                손실 3.9760  bpb 1.3138
+
+     [B] 가중치 E4M3 왕복
+     입도                      스케일 개수        가중치 상대오차        손실       bpb      Δbpb
+     ----------------------------------------------------------------------------------------
+     g128(자기검증)             428,544         0.00000    3.9761    1.3139   +0.0000
+     g256                   214,272         0.01530    3.9765    1.3140   +0.0002
+     per-row                 63,744         0.02111    3.9765    1.3140   +0.0001
+     per-tensor                  78         0.02778    3.9775    1.3143   +0.0005
+
+     [C] 활성 E4M3 왕복 (TLinear 입력)
+     입도                                                    손실       bpb      Δbpb
+     ----------------------------------------------------------------------------------------
+     1x128 타일                                          3.9768    1.3141   +0.0002
+     per-token                                         3.9770    1.3142   +0.0003
+     per-tensor                                        3.9769    1.3141   +0.0003
+
+     [D] 가중치 + 활성 동시  ★판정표
+     가중치             활성                                    손실       bpb      Δbpb
+     ----------------------------------------------------------------------------------------
+     g128            1x128 타일                          3.9768    1.3141   +0.0002
+     g128            per-token                         3.9770    1.3142   +0.0003
+     per-row         1x128 타일                          3.9772    1.3142   +0.0004
+     per-row         per-token                         3.9774    1.3143   +0.0004
+
+  ── mC_g16 (tied)   토큰 679,424  bytes/token 4.3660
+     기준선(왕복 없음)                                손실 3.9915  bpb 1.3190
+
+     [B] 가중치 E4M3 왕복
+     입도                      스케일 개수        가중치 상대오차        손실       bpb      Δbpb
+     ----------------------------------------------------------------------------------------
+     g128(자기검증)             391,680         0.00000    3.9915    1.3190   +0.0000
+     g256                   195,840         0.01529    3.9921    1.3191   +0.0002
+     per-row                 58,880         0.02108    3.9922    1.3192   +0.0002
+     per-tensor                  75         0.02799    3.9924    1.3193   +0.0003
+
+     [C] 활성 E4M3 왕복 (TLinear 입력)
+     입도                                                    손실       bpb      Δbpb
+     ----------------------------------------------------------------------------------------
+     1x128 타일                                          3.9921    1.3192   +0.0002
+     per-token                                         3.9923    1.3192   +0.0003
+     per-tensor                                        3.9925    1.3193   +0.0003
+
+     [D] 가중치 + 활성 동시  ★판정표
+     가중치             활성                                    손실       bpb      Δbpb
+     ----------------------------------------------------------------------------------------
+     g128            1x128 타일                          3.9922    1.3192   +0.0002
+     g128            per-token                         3.9922    1.3192   +0.0002
+     per-row         1x128 타일                          3.9929    1.3194   +0.0005
+     per-row         per-token                         3.9930    1.3195   +0.0005
+
+================================================================================================
+  ★어떻게 읽는가 (게이트 G0)
+================================================================================================
+  0. **[B] g128 행의 상대오차가 0.00000 이 아니면 도구가 틀린 것**이다.
+     삼진 코드는 {-1,0,+1} 이고 E4M3 는 이를 정확히 표현한다. 다른 행을 읽지 말 것.
+  1. [D] 최선 조합 Δbpb ^< 0.008(우리 실무 분해능의 bpb 환산)
+       -^ FP8 수치 게이트 통과. 단계1(실 구현) 검토 대상
+  2. 0.008 ~ 0.02
+       -^ 사후 왕복으로는 부족하다 = **재학습(QAT)이 필요**. 비용이 크게 오른다
+  3. ^> 0.02
+       -^ ★여기서 종결한다. 커널을 만들어야만 성립하고 그건 P014B 에서 접은 것과 같은 작업
+
+  ★[A] 와 함께 읽는다: blockwise 가 FAIL 이면 [B] 의 g128 행은 **실현 불가능한 최선**이다.
+     그때 실현 가능한 값은 rowwise 가 OK 일 때의 per-row 행이다.
+  ⚠️ 이 표는 **재학습 없는 사후 왕복**이다. QAT 로 적응시키면 더 좋아지고,
+     실제 GEMM 의 누산 오차는 안 보이므로 더 나빠질 수도 있다. **양방향 미지**.
+================================================================================================
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 4.0분  (2026-08-07 18:47:44)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  0. ***[B] g128 relative error. It must be 0.00000.*** If it is not, the
+     tool is wrong and NOTHING else in the log may be quoted.
+  1. table [A] - which recipes said OK and which said FAIL, verbatim.
+  2. table [B] - delta bpb per weight granularity.
+  3. table [C] - delta bpb per activation granularity.
+  4. table [D] - the combined table. ***The verdict comes from this one.***
+
+HOW TO READ IT (gate G0)
+  [D] best combination delta bpb under 0.008
+      -> FP8 numerical gate PASSED. stage 1 becomes worth costing out.
+  0.008 to 0.02
+      -> post-hoc round trip is not enough; QAT retraining would be needed.
+         Cost rises sharply. Record and stop.
+  above 0.02
+      -> ***close it here.*** It only works with a custom kernel, and that is
+         the same work P014B was dropped for.
+
+  Read [A] together with [B]: if blockwise FAILED, the g128 row of [B] is an
+  UNREACHABLE best case and the reachable number is the per-row row.
+
+LIMITS: no retraining, so QAT would do better. The real GEMM accumulation
+  error is invisible to this method, so reality could be worse.
+  ***Uncertainty runs both ways - say so in the result document.***
+  bpb is English SQuAD text only. Korean behaviour is not measured.
+=================================================================

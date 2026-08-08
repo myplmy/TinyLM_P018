@@ -1,0 +1,52 @@
+# 줄끝(EOL) 정책 — CRLF 오염 차단
+#
+# 왜 필요했나: 이 파일이 없던 시절 `git status` 가 수정 43건을 보고했는데 그중 37건이
+# **줄끝만 바뀐 것**이었다(작업트리 CRLF, HEAD LF). 손대지 않은 `.claude/skills/*` 와
+# 과거 학습로그 txt 까지 전부 잡혀서, 실제 변경 6건이 노이즈에 묻혔다.
+# 원인은 Windows 셸·Cowork 마운트·에디터가 서로 다른 줄끝으로 쓰는데
+# `.gitattributes` 도 `core.autocrlf` 도 없었던 것.
+#
+# 정책: **저장소 안(=커밋된 blob)은 항상 LF.** 작업트리 줄끝은 아래 규칙으로 정한다.
+#   - `text=auto eol=lf` : 텍스트로 판단되면 커밋 시 LF 로 정규화하고 체크아웃도 LF
+#   - `.bat` 만 예외로 CRLF : cmd.exe 는 LF 배치도 대체로 실행하지만, 줄 끝에 CR 이
+#     없으면 `goto`/라벨·행 연속에서 드물게 오작동한다. 실행 파일이므로 안전한 쪽을 택한다.
+#   - `-text` : 바이너리. 절대 손대지 않는다(토큰 캐시·체크포인트는 gitignore 지만 방어)
+
+* text=auto eol=lf
+
+# ★재발 주의: 이 저장소에서 줄끝 문제가 두 번 재발했다. 원인은 사람이 아니라 구조다 —
+#   아래가 .bat 을 CRLF 로 선언하는데, 이 워크플로의 편집 도구는 전부 LF 로 쓴다.
+#   그래서 배치를 고칠 때마다 선언과 작업트리가 어긋나고 git 이 매번 경고·재작성한다.
+#   → `scripts/lint_bat.py` 가 이걸 **E11 에러로 검출**하고 `--fix` 로 교정한다.
+#     배치를 고치면 반드시 린터를 돌리므로 자동으로 잡힌다. 수동 규율에 의존하지 않는다.
+#   (.bat 을 LF 로 통일하지 않는 이유: cmd.exe 는 LF-only 배치에서 goto/라벨이
+#    드물게 어긋난다. 우리 배치는 goto NOTIMPL / goto CACHEBAD 를 실제로 쓴다.)
+
+# --- Windows 에서 실행되는 스크립트: CRLF 유지 ---
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# --- 명시적으로 LF (셸·파이썬·문서·데이터) ---
+*.sh   text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+# --- 바이너리: 변환 금지 ---
+*.pt      -text
+*.bin     -text
+*.npy     -text
+*.png     -text
+*.jpg     -text
+*.pdf     -text
+*.zip     -text
+*.safetensors -text
+
+# --- diff 가독성: 학습 로그는 텍스트지만 통째로 바뀌면 무의미하므로 그대로 둔다 ---
+# (linguist-generated 를 쓰면 GitHub 에서 diff 를 접어준다. 로컬 git 동작에는 영향 없음)
+test_result/*_log_*.txt linguist-generated=true

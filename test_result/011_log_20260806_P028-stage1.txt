@@ -1,0 +1,119 @@
+[P028-1] common source text bpb - the cross-dataset comparison
+[guard] SQuAD source present
+[1/2] ko-en dense versus ko-edu-en dense - the question from result 009
+
+==============================================================================
+[runlog] 2026-08-06 05:25:57  name=P028-stage1
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\common_bpb.py --models dense dense --data ko-en ko-edu-en --tokens 300M --max-docs 4000
+==============================================================================
+############################################################################################
+  P028 단계1 — 공통 원문 bpb (SQuAD v2 context)
+############################################################################################
+  device=cuda  문서 4,000개  **2.97 MB**  seq=1024
+  ★같은 원문·같은 바이트에 서로 다른 토크나이저의 모델을 통과시킨다.
+    bpb = loss / ln2 / (bytes/token) 이므로 **토크나이저가 달라도 비교가 성립**한다.
+  ⚠️ 영문 전용이다. 한국어 공통 원문은 아직 없다(07_corpus_selection §3).
+
+  ── dense (ko-en, dense)
+     토큰 679,424  bytes/token 4.3660  손실 4.0845  **bpb 1.3497**
+
+  ── dense (ko-edu-en, dense)
+     토큰 734,649  bytes/token 4.0378  손실 4.2491  **bpb 1.5182**
+
+============================================================================================
+  ★공통 원문 bpb — 이것이 데이터셋 간 비교로 유효한 유일한 수치다
+============================================================================================
+  모델                데이터셋                 토큰수   B/tok       손실      bpb
+  ------------------------------------------------------------------------
+  dense             ko-en            679,424   4.366   4.0845   1.3497
+  dense             ko-edu-en        734,649   4.038   4.2491   1.5182
+
+  최저 bpb = dense (ko-en) 1.3497
+
+  읽는 법
+    · **bpb 만** 비교한다. '손실' 열은 토크나이저마다 토큰 수가 달라 **비교 불가**다.
+      (일부러 함께 찍는다 — 둘이 다른 이야기를 한다는 것이 이 실험의 요점이다)
+    · bpb 차이가 실무 분해능(0.024 nats 를 bpb 로 환산하면 대략 0.008)보다 작으면
+      **서열을 매기지 않는다.**
+    · 토큰 수가 크게 다르면 그 자체가 정보다 — 토크나이저가 이 원문을 얼마나 잘 압축하는가.
+
+  한계
+    · **영문 전용.** 한국어 쪽 결론은 이 실험으로 나오지 않는다.
+    · SQuAD context 는 영문 위키다. 두 모델 다 영문을 절반 학습했으므로 조건은 공정하지만,
+      **한국어 능력은 전혀 반영되지 않는다.**
+    · 문서를 `\n\n` 로 이어붙여 하나의 스트림으로 만든다 — 문서 경계에서 컨텍스트가 섞인다.
+      모든 모델에 동일하게 적용되므로 비교에는 영향이 없다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.3분  (2026-08-06 05:26:17)
+==============================================================================
+[2/2] tied candidates on the same text
+
+==============================================================================
+[runlog] 2026-08-06 05:26:18  name=P028-stage1
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python scripts\common_bpb.py --models p6d mC_g8_k4 mA_g4s34_k4 --data ko-en ko-en ko-en --tokens 300M --max-docs 4000
+==============================================================================
+############################################################################################
+  P028 단계1 — 공통 원문 bpb (SQuAD v2 context)
+############################################################################################
+  device=cuda  문서 4,000개  **2.97 MB**  seq=1024
+  ★같은 원문·같은 바이트에 서로 다른 토크나이저의 모델을 통과시킨다.
+    bpb = loss / ln2 / (bytes/token) 이므로 **토크나이저가 달라도 비교가 성립**한다.
+  ⚠️ 영문 전용이다. 한국어 공통 원문은 아직 없다(07_corpus_selection §3).
+
+  ── p6d (ko-en, dense)
+     토큰 679,424  bytes/token 4.3660  손실 4.0375  **bpb 1.3342**
+
+  ── mC_g8_k4 (ko-en, tied)
+     토큰 679,424  bytes/token 4.3660  손실 4.0121  **bpb 1.3258**
+
+  ── mA_g4s34_k4 (ko-en, tied)
+     토큰 679,424  bytes/token 4.3660  손실 4.0219  **bpb 1.3290**
+
+============================================================================================
+  ★공통 원문 bpb — 이것이 데이터셋 간 비교로 유효한 유일한 수치다
+============================================================================================
+  모델                데이터셋                 토큰수   B/tok       손실      bpb
+  ------------------------------------------------------------------------
+  mC_g8_k4          ko-en            679,424   4.366   4.0121   1.3258
+  mA_g4s34_k4       ko-en            679,424   4.366   4.0219   1.3290
+  p6d               ko-en            679,424   4.366   4.0375   1.3342
+
+  최저 bpb = mC_g8_k4 (ko-en) 1.3258
+
+  읽는 법
+    · **bpb 만** 비교한다. '손실' 열은 토크나이저마다 토큰 수가 달라 **비교 불가**다.
+      (일부러 함께 찍는다 — 둘이 다른 이야기를 한다는 것이 이 실험의 요점이다)
+    · bpb 차이가 실무 분해능(0.024 nats 를 bpb 로 환산하면 대략 0.008)보다 작으면
+      **서열을 매기지 않는다.**
+    · 토큰 수가 크게 다르면 그 자체가 정보다 — 토크나이저가 이 원문을 얼마나 잘 압축하는가.
+
+  한계
+    · **영문 전용.** 한국어 쪽 결론은 이 실험으로 나오지 않는다.
+    · SQuAD context 는 영문 위키다. 두 모델 다 영문을 절반 학습했으므로 조건은 공정하지만,
+      **한국어 능력은 전혀 반영되지 않는다.**
+    · 문서를 `\n\n` 로 이어붙여 하나의 스트림으로 만든다 — 문서 경계에서 컨텍스트가 섞인다.
+      모든 모델에 동일하게 적용되므로 비교에는 영향이 없다.
+------------------------------------------------------------------------------
+[runlog] 종료코드 0  소요 0.4분  (2026-08-06 05:26:44)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. the bpb column ONLY. Copy the whole table, but the verdict is bpb.
+  2. bytes/token per tokenizer - a finding about the TOKENIZER, not the model.
+  3. token counts. A large difference means one tokenizer compresses this
+     text much better, which is itself worth knowing.
+
+HOW TO READ IT
+  bpb gap larger than about 0.008 (= the 0.024 nats resolution in bpb terms)
+      -> the first VALID cross-dataset statement this project has. Record which
+         corpus wins and update docs\methods\07_corpus_selection.md.
+  bpb gap smaller than that
+      -> the corpora are equivalent on English prose. That is also an answer,
+         and it means the ko-edu-en curation bought nothing measurable here.
+
+LIMITS: ENGLISH ONLY - Korean ability is not measured / SQuAD is Wikipedia
+  prose and both models saw English web text, so the domain is not alien to
+  either (fair, but not a hard generalisation test) / one seed per model.
+=================================================================

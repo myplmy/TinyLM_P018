@@ -1,0 +1,86 @@
+z:\TinyLM>run_P028_stage05.bat
+============================================================
+[P028-0.5] causal check : front vs back of train, vs val
+============================================================
+
+============================================================
+[1/2] CONTROL : ko-en (healthy - val minus train was about 0)
+============================================================
+==============================================================================
+  P028 단계0.5 — ko-en / dense (dense)
+  train 298.5M 토큰, val 1.50M, 구간폭 1.50M, 크롭 200개/구간
+==============================================================================
+  train 앞 (구간 1/10, 학습함)                 loss 3.7995   ppl     44.7
+  train 중간 (구간 5/10, 학습함)                loss 3.6655   ppl     39.1
+  train 뒤 (구간 10/10, 학습함, val 직전)        loss 3.6368   ppl     38.0
+  val (학습 안 함)                           loss 3.7895   ppl     44.2
+
+  --------------------------------------------------------------------------
+  뒤 − 앞 = -0.1627   (둘 다 학습한 구간 → '구간 난이도' 차이)
+  val − 뒤 = +0.1527   ('본 적 없음'의 순수 비용)
+  val − 앞 = -0.0100   (합계)
+
+  판정
+    → 뚜렷한 패턴 없음. 캐시 통계로 설명되지 않는다 —
+      학습설정·토크나이저·풀 비율 등 다른 원인을 봐야 한다.
+
+  --------------------------------------------------------------------------
+  val 문서 길이 통계 (단계0 도구의 사각지대 — 거대 문서 1개가 val 을 지배할 수 있다)
+    문서 888개  평균 1688  중위 129  최대 55,505  최대/전체 3.7%
+
+  --------------------------------------------------------------------------
+  ★한계: 앞/뒤 둘 다 학습한 구간이라 '얼마나 외웠나'는 분리하지 못한다.
+        인과의 최종 확인은 캐시 재생성 후 재학습뿐이다.
+==============================================================================
+
+============================================================
+[2/2] SUSPECT : ko-edu-en (the 3.14 nats gap)
+============================================================
+==============================================================================
+  P028 단계0.5 — ko-edu-en / dense (dense)
+  train 298.5M 토큰, val 1.50M, 구간폭 1.50M, 크롭 200개/구간
+==============================================================================
+  train 앞 (구간 1/10, 학습함)                 loss 2.9108   ppl     18.4
+  train 중간 (구간 5/10, 학습함)                loss 4.5015   ppl     90.2
+  train 뒤 (구간 10/10, 학습함, val 직전)        loss 3.9509   ppl     52.0
+  val (학습 안 함)                           loss 6.1491   ppl    468.3
+
+  --------------------------------------------------------------------------
+  뒤 − 앞 = +1.0401   (둘 다 학습한 구간 → '구간 난이도' 차이)
+  val − 뒤 = +2.1982   ('본 적 없음'의 순수 비용)
+  val − 앞 = +3.2383   (합계)
+
+  판정
+    → 앞 ≪ 뒤 ≪ val : **H1 과 H2 가 함께** 작용한다(가장 흔한 실제 상황).
+      분포이동 기여 +1.040 / 미관측 기여 +2.198
+
+  --------------------------------------------------------------------------
+  val 문서 길이 통계 (단계0 도구의 사각지대 — 거대 문서 1개가 val 을 지배할 수 있다)
+    문서 555개  평균 2548  중위 141  최대 352,399  최대/전체 23.5%
+    [!] 단일 문서가 val 의 20% 초과 — 그 문서 하나가 val 손실을 지배할 수 있다.
+
+  --------------------------------------------------------------------------
+  ★한계: 앞/뒤 둘 다 학습한 구간이라 '얼마나 외웠나'는 분리하지 못한다.
+        인과의 최종 확인은 캐시 재생성 후 재학습뿐이다.
+==============================================================================
+
+================================================================
+HOW TO DECIDE - compare the two reports, especially "back minus front"
+
+  ko-en back-minus-front should be SMALL. If ko-edu-en back-minus-front is LARGE,
+  the tail of that corpus really is different, and the tail-val split is the direct cause.
+
+  Also read the val document stats. If ONE document is more than 20 percent of val,
+  that single document could be driving the whole val loss - which would make this a
+  FILTERING problem, not a corpus-quality problem. Very different fix.
+
+NEXT STEP DEPENDS ON THE ANSWER
+  H2 confirmed  -> the prepare() val split must change (random over documents).
+                   That touches EVERY dataset - see P028 appendix A for the C to D plan.
+  H1 confirmed  -> dedup on rebuild is the fix, the val split is secondary.
+  neither       -> stop blaming the cache and look at tokenizer / pool ratio.
+
+LIMIT: front and back were BOTH trained on, so this separates "region difficulty",
+  not "how much was memorised". Final causal proof needs a rebuild plus a retrain.
+================================================================
+done.

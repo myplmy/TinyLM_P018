@@ -1,0 +1,74 @@
+[P042 stage 2] --no-ckpt on tied + KD + dense teacher, with teacher latent freed. An OOM is the answer, not a failure.
+[1/1] --kd-teacher-infer ON plus --no-ckpt
+
+==============================================================================
+[runlog] 2026-08-08 03:19:33  name=P042_stage2
+[runlog] cwd=z:\TinyLM
+[runlog] cmd=python run100m.py train --preset m100R1c --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --seed 1337 --eval-every 100 --compile --kd --kd-every 4 --init-from --kd-teacher-infer --no-ckpt --tag mC_tinf_nockpt
+==============================================================================
+[cmd] python run100m.py train --preset m100R1c --arch tied --data ko-en --tokens 300M --pool-tokens 600M --exact-cache --steps 250 --micro-bs 8 --accum 16 --seq 1024 --lr 1e-3 --sched wsd --anneal-end 0.80 --decay-frac 0.2 --seed 1337 --eval-every 100 --compile --kd --kd-every 4 --init-from --kd-teacher-infer --no-ckpt --tag mC_tinf_nockpt
+[ckpt] m100R1c 용 'dense' 가 없어 부모 프리셋 것을 쓴다 -> m100_ko-en_300M_dense.pt
+[ckpt] m100R1c 용 'dense_best' 가 없어 부모 프리셋 것을 쓴다 -> m100_ko-en_300M_dense_best.pt
+[data] 정확 캐시 사용(exact, 상위호환 무시): 600.0M (ko-en) -> Z:\TinyLM\data_cache\ko-en_600000000
+[init] dense 부모초기화 완료 (중간 MLP는 8층 평균)  <- m100_ko-en_300M_dense.pt
+[kd] ★교사 추론 모드(P042): freeze_quant + drop_latent 적용 — 매 스텝 refresh_quant 를 건너뛰고 latent 를 해제한다
+[kd] ⚠️ 로짓은 **비트 동일해야 한다**. 다르면 구현 버그다(게이트 G0)
+[kd] 교사 로드 완료 (alpha=0.5, T=2.0)
+[compile] mode=default — 첫 스텝은 수 분 걸릴 수 있습니다
+========================================================================
+d=768 ffn=2048 layers=2+16+2  MLP g=8  CLA=2  vocab=32768 E=256
+========================================================================
+  삼진 가중치                       54.9M      11.2 MB
+  임베딩(factorized)               8.6M       1.8 MB
+  기타(norm/gate/router)          0.1M       0.1 MB
+  ----------------------------------------------------
+  합계                           63.5M      13.1 MB
+
+
+  저장(packed, 안 B)                         13.1 MB   B: code(log2 3 / 1.25) + group scale(16/micro_group)
+  저장(참고, 안 C 컨테이너)                        15.1 MB
+  ★상주(runtime, 현 구현)                     451.5 MB   = 유니크삼진 x 4B x 2벌 + 나머지 fp32 (결과 016)
+  L3(32MB) 상주       : 불가   ★**상주 기준**으로 판정한다 — 저장 기준은 13.1MB 라 오해를 부른다(결과 016)
+  타이드 MLP 1그룹      : 1.0 MB  (8회 연속 재사용)
+  토큰당 FLOPs          : 0.248 GFLOP
+  KV 캐시               : 7.5 KB/token  (10/20 층만 소유)
+    1024 ctx 7.5 MB   2048 ctx 15.0 MB
+========================================================================
+[mC_tinf_nockpt] device=cuda  250step x 131K tok = 33M 토큰  (sched=wsd ema=0.0 lora_r=0)
+
+[sched] shape=linear  anneal_start=0.15(step~37)  anneal_end=0.80(step~200)  완전삼진=0.80(step~200)  decay_frac=0.20  LR감쇠시작=0.80(step~200)  정렬됨
+  step     0/250  ce 7.6794  loss 6.3245[KD혼합]  |g| 15.39  anneal 0.00  lr 4.00e-05  20882 ms/step
+Traceback (most recent call last):
+  File "z:\TinyLM\run100m.py", line 10, in <module>
+    main()
+  File "z:\TinyLM\tinylm\cli.py", line 200, in main
+    train(preset, a.arch, a.data, n_tok, a.steps, a.micro_bs, a.seq, a.accum,
+  File "z:\TinyLM\tinylm\train\trainer.py", line 385, in train
+    kl = F.kl_div(F.log_softmax(logits.reshape(-1, cfg.vocab_size) / T, -1),
+  File "W:\miniforge3\envs\collatz_torch\lib\site-packages\torch\nn\functional.py", line 3413, in kl_div
+    reduced = torch.kl_div(input, target, reduction_enum, log_target=log_target)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1024.00 MiB. GPU 0 has a total capacity of 15.99 GiB of which 0 bytes is free. Of the allocated memory 13.00 GiB is allocated by PyTorch, and 1.71 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+------------------------------------------------------------------------------
+[runlog] 종료코드 1  소요 0.6분  (2026-08-08 03:20:08)
+==============================================================================
+=================================================================
+WHAT TO RECORD
+  1. did it finish 250 steps, yes or no.
+  2. peak reserved VRAM from the [vram] line - ***record it either way***,
+     including the allocation size in the OOM message if it died.
+  3. steady state ms/step, to compare against stage 1 run [2/3].
+  4. grad_max from the json.
+
+HOW TO READ IT
+  finished  -> ***--no-ckpt IS OPEN for tied + KD.*** That is minus 17.3
+               percent on every KD run from now on, and it means the
+               15.7 GB figure in EXPERIMENT_BASELINES section 5 was stale.
+               Revise section 5 - but ONLY after this run, per P042 preflight.
+  OOM       -> the expected outcome. Record the peak and the allocation size,
+               then go to P042 section 7 (teacher int8). ***This is a cheap
+               negative, not a failed experiment.***
+
+LIMITS: 250 steps. A 2289 step run allocates the same peak per step, so
+  surviving 250 steps is strong evidence but not proof - fragmentation
+  accumulates. If it passes, the first long run still needs watching.
+=================================================================
