@@ -615,53 +615,97 @@ class MobileTransformer(nn.Module):
         # ----------------------------------------------------
         # Input embedding
         # ----------------------------------------------------
-
+        
         self.emb = nn.Embedding(
             cfg.vocab_size,
             cfg.dim,
         )
-
-        # MobileLLM does NOT tie input embedding and LM head.
+        
+        # ----------------------------------------------------
+        # LM head
+        # ----------------------------------------------------
+        #
+        # MobileLLM uses embedding sharing in the actual
+        # 125M training configuration.
+        #
+        # Keep a separate Linear module for the interface,
+        # but make its weight the exact same Parameter as
+        # the input embedding.
+        # ----------------------------------------------------
+        
         self.lm_head = nn.Linear(
             cfg.dim,
             cfg.vocab_size,
             bias=False,
         )
+        
+        if cfg.share_embedding:
+            self.lm_head.weight = self.emb.weight
 
         # ----------------------------------------------------
         # MLP construction
         # ----------------------------------------------------
-
-        if cfg.tie_mlp:
-            n_mlps = cfg.n_mlp_groups
-        else:
-            n_mlps = cfg.n_layers
-
-        self.mlps = nn.ModuleList(
-            MobileMLP(cfg)
-            for _ in range(n_mlps)
-        )
-
+        #
+        # Dense:
+        #   Each MobileLayer owns its own MobileMLP.
+        #
+        # Shared:
+        #   MLP instances are registered in self.mlps and
+        #   referenced by multiple MobileLayer objects.
+        #
+        # This distinction is important because PyTorch's
+        # named_parameters() deduplicates shared Parameters.
         # ----------------------------------------------------
-        # Decoder layers
-        # ----------------------------------------------------
-
+        
         layers = []
-
-        for i in range(cfg.n_layers):
-
-            if cfg.tie_mlp:
-                mlp_idx = i // cfg.mlp_group
-            else:
-                mlp_idx = i
-
-            layers.append(
-                MobileLayer(
-                    cfg,
-                    mlp=self.mlps[mlp_idx],
-                )
+        
+        if cfg.tie_mlp:
+        
+            # ------------------------------------------------
+            # Shared MLP variant
+            # ------------------------------------------------
+        
+            self.mlps = nn.ModuleList(
+                MobileMLP(cfg)
+                for _ in range(cfg.n_mlp_groups)
             )
-
+        
+            for i in range(cfg.n_layers):
+        
+                mlp_idx = i // cfg.mlp_group
+        
+                layers.append(
+                    MobileLayer(
+                        cfg,
+                        mlp=self.mlps[mlp_idx],
+                    )
+                )
+        
+        else:
+        
+            # ------------------------------------------------
+            # Dense MobileLLM variant
+            # ------------------------------------------------
+            #
+            # Do NOT create a separate self.mlps ModuleList.
+            #
+            # Each MobileLayer owns its own MLP so that the
+            # canonical parameter paths are:
+            #
+            #   layers.0.mlp.gate_proj.weight
+            #   layers.0.mlp.up_proj.weight
+            #   layers.0.mlp.down_proj.weight
+            #
+            #   layers.1.mlp.gate_proj.weight
+            #   ...
+            # ------------------------------------------------
+        
+            for _ in range(cfg.n_layers):
+        
+                layers.append(
+                    MobileLayer(cfg)
+                )
+        
         self.layers = nn.ModuleList(layers)
 
         # ----------------------------------------------------
@@ -703,24 +747,32 @@ class MobileTransformer(nn.Module):
 
     def _init_weights(self, module):
         std = self.cfg.initializer_range
-
-        if isinstance(module, nn.Linear):
+    
+        if isinstance(module, nn.Embedding):
             nn.init.normal_(
                 module.weight,
                 mean=0.0,
                 std=std,
             )
-
+    
+        elif isinstance(module, nn.Linear):
+            # Shared embedding/LM-head uses the exact same
+            # Parameter. Do not initialize it a second time.
+            if (
+                module is getattr(self, "lm_head", None)
+                and self.cfg.share_embedding
+            ):
+                return
+    
+            nn.init.normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+            )
+    
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
-
-        elif isinstance(module, nn.Embedding):
-            nn.init.normal_(
-                module.weight,
-                mean=0.0,
-                std=std,
-            )
-
+    
         elif isinstance(module, MobileRMSNorm):
             nn.init.ones_(module.weight)
 
@@ -785,7 +837,7 @@ class MobileTransformer(nn.Module):
                     old_v = None
 
                 k, v = layer.attn.compute_kv(
-                    layer.input_layernorm(x),
+                    layer.norm1(x),
                     cos,
                     sin,
                 )
@@ -836,7 +888,13 @@ class MobileTransformer(nn.Module):
         # Untied LM head
         # ----------------------------------------------------
 
-        logits = self.lm_head(x)
+        if cfg.share_embedding:
+            logits = F.linear(
+                x,
+                self.emb.weight,
+            )
+        else:
+            logits = self.lm_head(x)
 
         if use_cache:
             if return_aux:

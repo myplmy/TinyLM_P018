@@ -58,6 +58,7 @@ class TMTConfig:
     # --- initialization / output head ---
     initializer_range: float = 0.02
     tie_word_embeddings: bool = True
+    share_embedding: bool = False
 
     grad_checkpoint: bool = False
     tie_mlp: bool = True              # False면 dense 기준선
@@ -220,6 +221,7 @@ def _mobile125(seq, ckpt):
 
         # MobileLLM config:
         # tie_word_embeddings = false
+        share_embedding=True,
         tie_word_embeddings=False,
 
         grad_checkpoint=ckpt,

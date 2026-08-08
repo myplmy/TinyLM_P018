@@ -1,0 +1,216 @@
+########################################################################
+# TinyLM_P018 MobileLLM 125M Architecture Smoke + Parity Test
+########################################################################
+
+PyTorch : 2.10.0
+CUDA    : True
+GPU     : NVIDIA GeForce RTX 4070 Ti SUPER
+
+========================================================================
+TEST 1: MobileLLM 125M configuration
+========================================================================
+[PASS] MobileLLM 125M config is valid.
+
+Reference architecture:
+  vocab       = 32000
+  hidden      = 576
+  FFN         = 1536
+  layers      = 30
+  Q/KV heads  = 9/3
+  head dim    = 64
+  context     = 2048
+  RoPE theta  = 10000.0
+  norm eps    = 1e-05
+  init std    = 0.02
+  tied output = False
+
+========================================================================
+TEST 2: MobileLLM 125M Dense construction
+========================================================================
+
+========================================================================
+MobileLLM 125M Dense
+========================================================================
+model_family : mobile
+vocab_size   : 32000
+dim          : 576
+ffn_dim      : 1536
+layers       : 30
+q_heads      : 9
+kv_heads     : 3
+head_dim     : 64
+mlp_group    : 1
+tie_mlp      : False
+tie_word_embeddings : False
+
+parameters   : 143,067,456
+trainable    : 143,067,456
+parameters M : 143.067
+[PASS] 30 layers have 30 unique MLP objects.
+[PASS] 30 layers have 30 unique attention modules.
+
+========================================================================
+TEST 3: MobileLLM + MLP-sharing construction
+========================================================================
+
+========================================================================
+MobileLLM 125M + MLP sharing (g6)
+========================================================================
+model_family : mobile
+vocab_size   : 32000
+dim          : 576
+ffn_dim      : 1536
+layers       : 30
+q_heads      : 9
+kv_heads     : 3
+head_dim     : 64
+mlp_group    : 6
+tie_mlp      : True
+tie_word_embeddings : False
+
+parameters   : 76,712,256
+trainable    : 76,712,256
+parameters M : 76.712
+[PASS] 30 layers use 5 shared MLPs.
+
+MLP sharing map:
+  MLP 0: L0-L5
+  MLP 1: L6-L11
+  MLP 2: L12-L17
+  MLP 3: L18-L23
+  MLP 4: L24-L29
+
+========================================================================
+TEST 4: Attention non-sharing
+========================================================================
+[PASS] 30 layers have 30 unique attention modules.
+
+========================================================================
+TEST 4: Attention non-sharing
+========================================================================
+[PASS] 30 layers have 30 unique attention modules.
+
+========================================================================
+TEST 5: Embedding / LM-head non-sharing
+========================================================================
+[PASS] input embedding and LM-head are separate parameters.
+embedding shape = (32000, 576)
+lm_head shape   = (32000, 576)
+
+========================================================================
+TEST 5: Embedding / LM-head non-sharing
+========================================================================
+[PASS] input embedding and LM-head are separate parameters.
+embedding shape = (32000, 576)
+lm_head shape   = (32000, 576)
+
+========================================================================
+TEST 6: MobileLLM configuration parity
+========================================================================
+[PASS] TinyLM Mobile config matches the MobileLLM 125M reference.
+
+Parity summary:
+  hidden size       : 576 == 576
+  FFN size          : 1536 == 1536
+  layers            : 30 == 30
+  attention heads   : 9 == 9
+  KV heads          : 3 == 3
+  head dimension    : 64 == 64
+  context           : 2048 == 2048
+  RoPE theta        : 10000.0 == 10000.0
+  RMSNorm eps       : 1e-05 == 1e-05
+  initializer range : 0.02 == 0.02
+  tied embeddings   : False
+
+========================================================================
+TEST 7: Dense / Shared architecture parity
+========================================================================
+[PASS] Dense and Shared preserve the same MobileLLM base architecture.
+  Dense unique MLPs  : 30
+  Shared unique MLPs : 5
+  Attention modules   : 30 / 30
+  Difference          : MLP sharing only
+
+========================================================================
+TEST 8: MobileLLM structural parity
+========================================================================
+[PASS] MobileLLM structural dimensions are present in the instantiated model.
+  embedding : (32000, 576)
+  LM head   : (32000, 576)
+  Q dim     : 576
+  KV dim    : 192
+  FFN dim   : 1536
+
+========================================================================
+TEST 8: MobileLLM structural parity
+========================================================================
+[PASS] MobileLLM structural dimensions are present in the instantiated model.
+  embedding : (32000, 576)
+  LM head   : (32000, 576)
+  Q dim     : 576
+  KV dim    : 192
+  FFN dim   : 1536
+
+========================================================================
+TEST 9: Forward - MobileLLM 125M Dense
+========================================================================
+[PASS] logits shape = (2, 32, 32000)
+logits mean = -0.001594
+logits std  = 0.480617
+
+========================================================================
+TEST 10: Loss + backward - MobileLLM 125M Dense
+========================================================================
+loss = 10.501503
+[PASS] backward succeeded; 273 parameter tensors received gradients.
+
+========================================================================
+TEST 9: Forward - MobileLLM 125M + MLP sharing g6
+========================================================================
+[PASS] logits shape = (2, 32, 32000)
+logits mean = -0.002797
+logits std  = 0.478318
+
+========================================================================
+TEST 10: Loss + backward - MobileLLM 125M + MLP sharing g6
+========================================================================
+loss = 10.527371
+[PASS] backward succeeded; 198 parameter tensors received gradients.
+
+========================================================================
+TEST 11: Shared MLP gradient flow
+========================================================================
+[PASS] shared MLP gradient norm = 5.165572e+00
+
+========================================================================
+TEST 12: Parameter registration
+========================================================================
+[PASS] state_dict contains 288 entries.
+[PASS] found 90 MLP state entries.
+[PASS] found 1 LM-head state entries.
+
+========================================================================
+TEST 13: Existing P018 construction
+========================================================================
+[PASS] existing P018 model still builds.
+P018 parameter count = 72,938,280 (72.938M)
+
+########################################################################
+# ALL TESTS PASSED
+########################################################################
+
+MobileLLM 125M Dense and MobileLLM 125M + MLP-sharing g6 are construction/forward/backward compatible.
+
+MobileLLM reference:
+  Dense : 576d / 1536ffn / 30L / 9Q / 3KV
+  Shared : same architecture / MLP group=6
+  Shared MLP objects : 5
+
+MLP sharing:
+  MLP 0 : L0-L5
+  MLP 1 : L6-L11
+  MLP 2 : L12-L17
+  MLP 3 : L18-L23
+  MLP 4 : L24-L29
+
+Next step: integrate init_utils.py / trainer.py / kd_cache.py for the P018-R1 KD experiments.

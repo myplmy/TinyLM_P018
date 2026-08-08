@@ -341,37 +341,75 @@ class Layer(nn.Module):
 
 class MobileLayer(nn.Module):
     """
-    Exact Llama/MobileLLM-style decoder block.
+    MobileLLM/LLaMA-style decoder block.
 
-    RMSNorm
-      -> self attention
-      -> residual
-      -> RMSNorm
-      -> SwiGLU
-      -> residual
+        x
+        │
+        ├── RMSNorm (norm1)
+        │
+        ├── Self Attention
+        │
+        └── residual
+             │
+             ├── RMSNorm (norm2)
+             │
+             ├── SwiGLU MLP
+             │
+             └── residual
 
     If `mlp` is supplied, multiple layers may reference
-    the same MobileMLP instance. This is the only
-    P018-R1 modification in the shared variant.
+    the same MobileMLP instance.
+
+    P018-R1 shared variant:
+        multiple MobileLayer instances may share the same
+        MobileMLP object.
+
+    Important:
+        `norm1` and `norm2` are the canonical parameter
+        names used by the TinyLM MobileLLM parity test.
     """
 
     def __init__(self, cfg, mlp=None):
         super().__init__()
 
-        self.input_layernorm = MobileRMSNorm(
+        # ------------------------------------------------
+        # Pre-attention RMSNorm
+        # ------------------------------------------------
+
+        self.norm1 = MobileRMSNorm(
             cfg.dim,
             cfg.norm_eps,
         )
+
+        # ------------------------------------------------
+        # Self Attention
+        # ------------------------------------------------
 
         self.attn = MobileAttention(
             cfg,
             owns_kv=True,
         )
 
-        self.post_attention_layernorm = MobileRMSNorm(
+        # ------------------------------------------------
+        # Pre-MLP RMSNorm
+        # ------------------------------------------------
+
+        self.norm2 = MobileRMSNorm(
             cfg.dim,
             cfg.norm_eps,
         )
+
+        # ------------------------------------------------
+        # MLP
+        # ------------------------------------------------
+        #
+        # Dense mode:
+        #     each layer receives its own MobileMLP
+        #
+        # Shared mode:
+        #     multiple layers reference the same MobileMLP
+        #     instance.
+        #
 
         self.mlp = (
             mlp
@@ -387,10 +425,13 @@ class MobileLayer(nn.Module):
         sin,
         mode_p=None,
     ):
+        # =================================================
         # Attention block
+        # =================================================
+
         residual = x
 
-        x = self.input_layernorm(x)
+        x = self.norm1(x)
 
         x = self.attn(
             x,
@@ -402,10 +443,13 @@ class MobileLayer(nn.Module):
 
         x = residual + x
 
+        # =================================================
         # MLP block
+        # =================================================
+
         residual = x
 
-        x = self.post_attention_layernorm(x)
+        x = self.norm2(x)
 
         x = self.mlp(x)
 
