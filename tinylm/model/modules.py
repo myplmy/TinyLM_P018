@@ -52,15 +52,58 @@ class MobileRMSNorm(nn.Module):
 
 
 def build_rope(hd, max_len, theta, device=None):
-    inv = 1.0 / (theta ** (torch.arange(0, hd, 2, device=device).float() / hd))
-    f = torch.outer(torch.arange(max_len, device=device).float(), inv)
-    return torch.cos(f), torch.sin(f)
+    inv_freq = 1.0 / (
+        theta ** (
+            torch.arange(
+                0,
+                hd,
+                2,
+                dtype=torch.int64,
+                device=device,
+            ).float() / hd
+        )
+    )
+
+    positions = torch.arange(
+        max_len,
+        dtype=torch.float32,
+        device=device,
+    )
+
+    freqs = torch.outer(
+        positions,
+        inv_freq,
+    )
+
+    emb = torch.cat(
+        (freqs, freqs),
+        dim=-1,
+    )
+
+    return (
+        torch.cos(emb),
+        torch.sin(emb),
+    )
 
 
 def apply_rope(x, cos, sin):
-    x1, x2 = x.float().chunk(2, dim=-1)
-    cos, sin = cos[None, None], sin[None, None]
-    return torch.cat([x1*cos - x2*sin, x1*sin + x2*cos], dim=-1).to(x.dtype)
+    cos = cos[None, None]
+    sin = sin[None, None]
+
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2:]
+
+    rotated = torch.cat(
+        (-x2, x1),
+        dim=-1,
+    )
+
+    return (
+        x * cos
+        + rotated * sin
+    )
+
+
 
 
 @register_attention("softmax_cla")
@@ -180,20 +223,36 @@ class MobileAttention(nn.Module):
     def forward(self, x, kv, cos, sin, mode_p=None):
         B, T, _ = x.shape
         c = self.cfg
-        
+    
+        # ------------------------------------------------
+        # Q projection
+        # ------------------------------------------------
+    
         q = self.q_proj(x).view(
             B,
             T,
             c.n_q_heads,
             c.head_dim,
         ).transpose(1, 2)
-        
+    
+        # ------------------------------------------------
+        # RoPE
+        # ------------------------------------------------
+    
         q = apply_rope(q, cos, sin)
-        
+    
+        # ------------------------------------------------
+        # KV
+        # ------------------------------------------------
+    
         k, v = kv
-        
+    
+        # ------------------------------------------------
+        # GQA
+        # ------------------------------------------------
+    
         n_rep = c.n_q_heads // c.n_kv_heads
-        
+    
         if n_rep > 1:
             k = k.repeat_interleave(
                 n_rep,
@@ -203,37 +262,99 @@ class MobileAttention(nn.Module):
                 n_rep,
                 dim=1,
             )
-        
+    
+        # ------------------------------------------------
+        # Official MobileLLM eager attention
+        #
+        # scores = QK^T / sqrt(head_dim)
+        # softmax in float32
+        # ------------------------------------------------
+    
+        attn_weights = torch.matmul(
+            q,
+            k.transpose(2, 3),
+        ) / math.sqrt(c.head_dim)
+    
         q_len = q.shape[2]
         kv_len = k.shape[2]
-        
+    
+        # ------------------------------------------------
+        # Causal mask
+        # ------------------------------------------------
+    
         if q_len == kv_len:
-            o = F.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                is_causal=True,
+    
+            causal_mask = torch.triu(
+                torch.ones(
+                    q_len,
+                    kv_len,
+                    dtype=torch.bool,
+                    device=q.device,
+                ),
+                diagonal=1,
             )
+    
+            attn_weights = attn_weights.masked_fill(
+                causal_mask,
+                torch.finfo(attn_weights.dtype).min,
+            )
+    
         else:
+    
             past_len = kv_len - q_len
-            
-            mask = torch.ones(
+    
+            causal_mask = torch.ones(
                 q_len,
                 kv_len,
                 dtype=torch.bool,
                 device=q.device,
-            ).tril(past_len)
-            
-            o = F.scaled_dot_product_attention(
-                q,
-                k,
-                v,
-                attn_mask=mask,
+            ).triu(
+                diagonal=past_len + 1
             )
-        
-        o = o.transpose(1, 2).contiguous()
-        o = o.view(B, T, c.dim)
-        
+    
+            attn_weights = attn_weights.masked_fill(
+                causal_mask,
+                torch.finfo(attn_weights.dtype).min,
+            )
+    
+        # ------------------------------------------------
+        # IMPORTANT:
+        # Official MobileLLM explicitly performs
+        # float32 softmax.
+        # ------------------------------------------------
+    
+        attn_weights = F.softmax(
+            attn_weights,
+            dim=-1,
+            dtype=torch.float32,
+        ).to(q.dtype)
+    
+        # ------------------------------------------------
+        # Attention @ V
+        # ------------------------------------------------
+    
+        o = torch.matmul(
+            attn_weights,
+            v,
+        )
+    
+        # ------------------------------------------------
+        # Merge heads
+        # ------------------------------------------------
+    
+        o = o.transpose(
+            1,
+            2,
+        ).contiguous().view(
+            B,
+            T,
+            c.dim,
+        )
+    
+        # ------------------------------------------------
+        # Output projection
+        # ------------------------------------------------
+    
         return self.o_proj(o)
 
 
