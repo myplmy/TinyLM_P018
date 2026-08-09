@@ -76,6 +76,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from tinylm.model.modules import apply_rope
 
 # ============================================================
 # Repository root
@@ -1243,14 +1244,1063 @@ def tiny_forward(
 
 
 # ============================================================
-# Numerical forward parity
+# DEBUG: Layer-level / sub-operation numerical parity
+# ============================================================
+
+def _tensor_diff_stats(a, b):
+    """
+    Return detailed numerical difference statistics.
+    """
+
+    af = a.detach().float()
+    bf = b.detach().float()
+
+    diff = (af - bf).abs()
+
+    max_abs = diff.max().item()
+
+    denom = torch.maximum(
+        af.abs(),
+        bf.abs(),
+    )
+
+    max_rel = (
+        diff / denom.clamp_min(1e-12)
+    ).max().item()
+
+    mean_abs = diff.mean().item()
+
+    if diff.numel() > 0:
+        flat_idx = diff.reshape(-1).argmax()
+        max_index = tuple(
+            torch.unravel_index(
+                flat_idx,
+                diff.shape,
+            )
+        )
+
+        max_index = tuple(
+            int(x)
+            for x in max_index
+        )
+    else:
+        max_index = None
+
+    return {
+        "max_abs": max_abs,
+        "max_rel": max_rel,
+        "mean_abs": mean_abs,
+        "max_index": max_index,
+    }
+
+
+def debug_compare(
+    name,
+    official,
+    tiny,
+    atol=ATOL,
+    rtol=RTOL,
+):
+    """
+    Debug comparison.
+
+    Supports:
+        Tensor
+        tuple/list of Tensor
+        nested tuple/list
+
+    Never raises merely because the captured
+    object is a tuple/list.
+    """
+
+    # ----------------------------------------------------
+    # Recursive comparison for tuple/list
+    # ----------------------------------------------------
+
+    if isinstance(official, (tuple, list)) or isinstance(tiny, (tuple, list)):
+
+        if not isinstance(official, (tuple, list)):
+            print()
+            print(f"[FAIL] {name}")
+            print("       Official is Tensor, TinyLM is tuple/list")
+            return False
+
+        if not isinstance(tiny, (tuple, list)):
+            print()
+            print(f"[FAIL] {name}")
+            print("       Official is tuple/list, TinyLM is Tensor")
+            return False
+
+        if len(official) != len(tiny):
+            print()
+            print(f"[FAIL] {name}")
+            print(
+                f"       tuple length Official={len(official)} "
+                f"TinyLM={len(tiny)}"
+            )
+            return False
+
+        all_ok = True
+
+        for i, (oa, tb) in enumerate(
+            zip(official, tiny)
+        ):
+
+            ok = debug_compare(
+                f"{name}[{i}]",
+                oa,
+                tb,
+                atol=atol,
+                rtol=rtol,
+            )
+
+            all_ok = all_ok and ok
+
+        return all_ok
+
+    # ----------------------------------------------------
+    # Tensor / non-Tensor mismatch
+    # ----------------------------------------------------
+
+    if torch.is_tensor(official) != torch.is_tensor(tiny):
+
+        print()
+        print(f"[FAIL] {name}")
+
+        print(
+            f"       type Official={type(official)}"
+        )
+
+        print(
+            f"       type TinyLM  ={type(tiny)}"
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Non-tensor values
+    # ----------------------------------------------------
+
+    if not torch.is_tensor(official):
+
+        ok = official == tiny
+
+        status = "PASS" if ok else "FAIL"
+
+        print(
+            f"[{status}] {name:<38} "
+            f"non-tensor"
+        )
+
+        if not ok:
+
+            print(
+                f"       Official={official!r}"
+            )
+
+            print(
+                f"       TinyLM  ={tiny!r}"
+            )
+
+        return ok
+
+    # ----------------------------------------------------
+    # Shape
+    # ----------------------------------------------------
+
+    if tuple(official.shape) != tuple(tiny.shape):
+
+        print()
+        print(f"[FAIL] {name}")
+
+        print(
+            f"       shape Official={tuple(official.shape)}"
+        )
+
+        print(
+            f"       shape TinyLM  ={tuple(tiny.shape)}"
+        )
+
+        return False
+
+    # ----------------------------------------------------
+    # Numerical comparison
+    # ----------------------------------------------------
+
+    stats = _tensor_diff_stats(
+        official,
+        tiny,
+    )
+
+    ok = torch.allclose(
+        official.float(),
+        tiny.float(),
+        atol=atol,
+        rtol=rtol,
+    )
+
+    status = "PASS" if ok else "FAIL"
+
+    print(
+        f"[{status}] {name:<38} "
+        f"abs={stats['max_abs']:.6e} "
+        f"rel={stats['max_rel']:.6e} "
+        f"mean={stats['mean_abs']:.6e}"
+    )
+
+    if not ok:
+
+        print(
+            f"       max index = {stats['max_index']}"
+        )
+
+        idx = stats["max_index"]
+
+        if idx is not None:
+
+            oa = (
+                official.detach()
+                .float()[idx]
+                .item()
+            )
+
+            tb = (
+                tiny.detach()
+                .float()[idx]
+                .item()
+            )
+
+            print(
+                f"       Official={oa:.9e}"
+            )
+
+            print(
+                f"       TinyLM  ={tb:.9e}"
+            )
+
+    return ok
+
+# ============================================================
+# Capture official module outputs
+# ============================================================
+
+def _register_debug_hook(
+    module,
+    storage,
+    name,
+):
+    """
+    Register a forward hook that stores detached output.
+    """
+
+    def hook(mod, inputs, output):
+
+        if isinstance(output, tuple):
+
+            # Some HF modules return tuples.
+            storage[name] = tuple(
+                x.detach().clone()
+                if torch.is_tensor(x)
+                else x
+                for x in output
+            )
+
+        elif torch.is_tensor(output):
+
+            storage[name] = (
+                output.detach()
+                .clone()
+            )
+
+        else:
+
+            storage[name] = output
+
+    return module.register_forward_hook(hook)
+
+
+# ============================================================
+# Official layer-29 detailed capture
+# ============================================================
+
+def capture_official_layer29(
+    model,
+    tokens,
+):
+    """
+    Capture official MobileLLM layer 29.
+
+    IMPORTANT
+    ---------
+    transformers==4.41.2 LlamaModel hidden_states semantics:
+
+        hidden_states[0]
+            = embedding output
+
+        hidden_states[1]
+            = layer 0 output
+
+        ...
+
+        hidden_states[29]
+            = layer 28 output
+            = layer 29 input
+
+        hidden_states[30]
+            = FINAL RMSNorm output
+
+    Therefore hidden_states[30] is NOT the raw output of
+    decoder layer 29.
+
+    The authoritative layer-29 output is captured by a
+    forward hook directly on model.model.layers[29].
+    """
+
+    captured = {}
+    hooks = []
+
+    layer = model.model.layers[29]
+
+    # --------------------------------------------------------
+    # Internal module hooks
+    # --------------------------------------------------------
+
+    hooks.append(
+        _register_debug_hook(
+            layer.input_layernorm,
+            captured,
+            "norm1",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.self_attn.q_proj,
+            captured,
+            "q_proj",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.self_attn.k_proj,
+            captured,
+            "k_proj",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.self_attn.v_proj,
+            captured,
+            "v_proj",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.self_attn.o_proj,
+            captured,
+            "o_proj",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.post_attention_layernorm,
+            captured,
+            "norm2",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.mlp.gate_proj,
+            captured,
+            "mlp_gate",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.mlp.up_proj,
+            captured,
+            "mlp_up",
+        )
+    )
+
+    hooks.append(
+        _register_debug_hook(
+            layer.mlp.down_proj,
+            captured,
+            "mlp_down",
+        )
+    )
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # Capture the COMPLETE decoder-layer output.
+    #
+    # LlamaDecoderLayer.forward() returns a tuple:
+    #
+    #     (hidden_states,)
+    #
+    # or, depending on cache/attention settings:
+    #
+    #     (hidden_states, ...)
+    #
+    # We want element [0].
+    # --------------------------------------------------------
+
+    def decoder_layer_hook(
+        mod,
+        inputs,
+        output,
+    ):
+        if isinstance(output, tuple):
+
+            if len(output) == 0:
+                raise RuntimeError(
+                    "Official layer 29 returned an empty tuple."
+                )
+
+            layer_output = output[0]
+
+        elif torch.is_tensor(output):
+
+            layer_output = output
+
+        else:
+
+            raise RuntimeError(
+                "Unexpected official layer 29 output type: "
+                f"{type(output)}"
+            )
+
+        captured["layer_output"] = (
+            layer_output
+            .detach()
+            .clone()
+        )
+
+    hooks.append(
+        layer.register_forward_hook(
+            decoder_layer_hook
+        )
+    )
+
+    # --------------------------------------------------------
+    # Official forward
+    # --------------------------------------------------------
+
+    try:
+
+        with torch.no_grad():
+
+            output = model.model(
+                input_ids=tokens,
+                use_cache=False,
+                output_hidden_states=True,
+                return_dict=True,
+            )
+
+    finally:
+
+        for h in hooks:
+            h.remove()
+
+    # --------------------------------------------------------
+    # Authoritative layer boundary
+    # --------------------------------------------------------
+
+    captured["layer_input"] = (
+        output.hidden_states[29]
+        .detach()
+        .clone()
+    )
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    #
+    # DO NOT use:
+    #
+    #     output.hidden_states[30]
+    #
+    # as layer29 output.
+    #
+    # In transformers 4.41.2 that is the output AFTER the
+    # final model RMSNorm.
+    # --------------------------------------------------------
+
+    if "layer_output" not in captured:
+        raise RuntimeError(
+            "Official layer 29 forward hook did not capture "
+            "the decoder-layer output."
+        )
+
+    # --------------------------------------------------------
+    # Final model output
+    # --------------------------------------------------------
+
+    captured["model_hidden"] = (
+        output.last_hidden_state
+        .detach()
+        .clone()
+    )
+
+    # --------------------------------------------------------
+    # Sanity check:
+    #
+    # layer 29 output + final model norm must equal
+    # output.last_hidden_state.
+    #
+    # This verifies that the hook really captured the raw
+    # decoder layer output.
+    # --------------------------------------------------------
+
+    with torch.no_grad():
+
+        expected_final = model.model.norm(
+            captured["layer_output"]
+        )
+
+    compare_tensors(
+        "official layer29 output -> final norm",
+        expected_final,
+        captured["model_hidden"],
+    )
+
+    # --------------------------------------------------------
+    # Layer input sanity check
+    # --------------------------------------------------------
+
+    assert torch.equal(
+        captured["layer_input"],
+        output.hidden_states[29],
+    )
+
+    return captured
+
+# ============================================================
+# TinyLM layer-29 detailed capture
+# ============================================================
+
+def capture_tiny_layer29(
+    model,
+    tokens,
+):
+    """
+    Detailed numerical capture of TinyLM layer 29.
+
+    This function intentionally reconstructs only layer 29
+    mathematically so that the first divergent operation can
+    be identified.
+
+    IMPORTANT
+    ---------
+    The production MobileAttention implementation is:
+
+        q_proj
+        -> reshape
+        -> RoPE
+
+        k_proj
+        -> reshape
+        -> RoPE
+
+        v_proj
+        -> reshape
+
+        -> GQA
+        -> causal attention
+        -> softmax
+        -> attention @ V
+        -> merge heads
+        -> o_proj
+
+    The same mathematical sequence is reconstructed here.
+
+    Unlike the previous debug version, this function does NOT
+    contain a second dead implementation after return().
+    """
+
+    layer_idx = 29
+
+    if layer_idx >= len(model.layers):
+        raise AssertionError(
+            f"TinyLM has only {len(model.layers)} layers."
+        )
+
+    layer = model.layers[layer_idx]
+
+    B, T = tokens.shape
+    c = model.cfg
+
+    captured = {}
+
+    # ========================================================
+    # Embedding
+    # ========================================================
+
+    x = model.emb(tokens)
+
+    captured["embedding"] = (
+        x.detach().clone()
+    )
+
+    # ========================================================
+    # RoPE
+    # ========================================================
+
+    cos = model.rope_cos[:T]
+    sin = model.rope_sin[:T]
+
+    # ========================================================
+    # Run layers 0 ~ 28 using the REAL production path
+    # ========================================================
+
+    for i in range(layer_idx):
+
+        L = model.layers[i]
+
+        x_norm = L.norm1(x)
+
+        k, v = L.attn.compute_kv(
+            x_norm,
+            cos,
+            sin,
+        )
+
+        x = L(
+            x,
+            (k, v),
+            cos,
+            sin,
+            None,
+        )
+
+    # ========================================================
+    # Layer 29 input
+    # ========================================================
+
+    captured["layer_input"] = (
+        x.detach().clone()
+    )
+
+    # ========================================================
+    # Layer 29
+    # ========================================================
+
+    # --------------------------------------------------------
+    # Norm 1
+    # --------------------------------------------------------
+
+    norm1 = layer.norm1(x)
+
+    captured["norm1"] = (
+        norm1.detach().clone()
+    )
+
+    # ========================================================
+    # Attention
+    # ========================================================
+
+    attn = layer.attn
+
+    # --------------------------------------------------------
+    # Q/K/V linear projections
+    # --------------------------------------------------------
+
+    q_linear = attn.q_proj(
+        norm1
+    )
+
+    k_linear = attn.k_proj(
+        norm1
+    )
+
+    v_linear = attn.v_proj(
+        norm1
+    )
+
+    captured["q_proj"] = (
+        q_linear.detach().clone()
+    )
+
+    captured["k_proj"] = (
+        k_linear.detach().clone()
+    )
+
+    captured["v_proj"] = (
+        v_linear.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Reshape heads
+    # --------------------------------------------------------
+
+    q = q_linear.view(
+        B,
+        T,
+        c.n_q_heads,
+        c.head_dim,
+    ).transpose(1, 2)
+
+    k = k_linear.view(
+        B,
+        T,
+        c.n_kv_heads,
+        c.head_dim,
+    ).transpose(1, 2)
+
+    v = v_linear.view(
+        B,
+        T,
+        c.n_kv_heads,
+        c.head_dim,
+    ).transpose(1, 2)
+
+    captured["q_reshaped"] = (
+        q.detach().clone()
+    )
+
+    captured["k_reshaped"] = (
+        k.detach().clone()
+    )
+
+    captured["v_reshaped"] = (
+        v.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # RoPE
+    # --------------------------------------------------------
+
+    q_rope = apply_rope(
+        q,
+        cos,
+        sin,
+    )
+
+    k_rope = apply_rope(
+        k,
+        cos,
+        sin,
+    )
+
+    captured["q_rope"] = (
+        q_rope.detach().clone()
+    )
+
+    captured["k_rope"] = (
+        k_rope.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # GQA
+    # --------------------------------------------------------
+
+    n_rep = (
+        c.n_q_heads
+        // c.n_kv_heads
+    )
+
+    if n_rep > 1:
+
+        k_attn = k_rope.repeat_interleave(
+            n_rep,
+            dim=1,
+        )
+
+        v_attn = v.repeat_interleave(
+            n_rep,
+            dim=1,
+        )
+
+    else:
+
+        k_attn = k_rope
+        v_attn = v
+
+    captured["k_gqa"] = (
+        k_attn.detach().clone()
+    )
+
+    captured["v_gqa"] = (
+        v_attn.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Attention scores
+    # --------------------------------------------------------
+
+    attention_scores = torch.matmul(
+        q_rope,
+        k_attn.transpose(2, 3),
+    ) / math.sqrt(
+        c.head_dim
+    )
+
+    captured["attention_scores"] = (
+        attention_scores.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Causal mask
+    # --------------------------------------------------------
+
+    q_len = q_rope.shape[2]
+    kv_len = k_attn.shape[2]
+
+    if q_len == kv_len:
+
+        causal_mask = torch.triu(
+            torch.ones(
+                q_len,
+                kv_len,
+                dtype=torch.bool,
+                device=x.device,
+            ),
+            diagonal=1,
+        )
+
+    else:
+
+        past_len = kv_len - q_len
+
+        causal_mask = torch.ones(
+            q_len,
+            kv_len,
+            dtype=torch.bool,
+            device=x.device,
+        ).triu(
+            diagonal=past_len + 1
+        )
+
+    attention_scores_masked = (
+        attention_scores.masked_fill(
+            causal_mask,
+            torch.finfo(
+                attention_scores.dtype
+            ).min,
+        )
+    )
+
+    captured["attention_scores_masked"] = (
+        attention_scores_masked.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Softmax
+    # --------------------------------------------------------
+
+    attention_weights = F.softmax(
+        attention_scores_masked,
+        dim=-1,
+        dtype=torch.float32,
+    ).to(
+        q_rope.dtype
+    )
+
+    captured["attention_weights"] = (
+        attention_weights.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Attention @ V
+    # --------------------------------------------------------
+
+    attention_output_heads = torch.matmul(
+        attention_weights,
+        v_attn,
+    )
+
+    captured["attention_output_heads"] = (
+        attention_output_heads.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Merge heads
+    # --------------------------------------------------------
+
+    attention_merged = (
+        attention_output_heads
+        .transpose(1, 2)
+        .contiguous()
+        .view(
+            B,
+            T,
+            c.dim,
+        )
+    )
+
+    captured["attention_merged"] = (
+        attention_merged.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # O projection
+    # --------------------------------------------------------
+
+    o_proj = attn.o_proj(
+        attention_merged
+    )
+
+    captured["o_proj"] = (
+        o_proj.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Attention residual
+    # --------------------------------------------------------
+
+    after_attention_residual = (
+        x + o_proj
+    )
+
+    captured["after_attention_residual"] = (
+        after_attention_residual.detach().clone()
+    )
+
+    # ========================================================
+    # MLP
+    # ========================================================
+
+    norm2 = layer.norm2(
+        after_attention_residual
+    )
+
+    captured["norm2"] = (
+        norm2.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Gate / Up
+    # --------------------------------------------------------
+
+    gate = layer.mlp.gate_proj(
+        norm2
+    )
+
+    up = layer.mlp.up_proj(
+        norm2
+    )
+
+    captured["mlp_gate"] = (
+        gate.detach().clone()
+    )
+
+    captured["mlp_up"] = (
+        up.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # SiLU
+    # --------------------------------------------------------
+
+    silu_gate = F.silu(
+        gate
+    )
+
+    captured["mlp_silu_gate"] = (
+        silu_gate.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # SwiGLU multiplication
+    # --------------------------------------------------------
+
+    mlp_hidden = (
+        silu_gate * up
+    )
+
+    captured["mlp_hidden"] = (
+        mlp_hidden.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Down projection
+    # --------------------------------------------------------
+
+    mlp_down = layer.mlp.down_proj(
+        mlp_hidden
+    )
+
+    captured["mlp_down"] = (
+        mlp_down.detach().clone()
+    )
+
+    # --------------------------------------------------------
+    # Final residual
+    # --------------------------------------------------------
+
+    layer_output = (
+        after_attention_residual
+        + mlp_down
+    )
+
+    captured["layer_output"] = (
+        layer_output.detach().clone()
+    )
+
+    # ========================================================
+    # Diagnostic statistics
+    # ========================================================
+
+    print()
+    print("---------- TinyLM Layer 29 Detailed Debug ----------")
+
+    debug_items = [
+        "layer_input",
+        "norm1",
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "q_reshaped",
+        "k_reshaped",
+        "v_reshaped",
+        "q_rope",
+        "k_rope",
+        "k_gqa",
+        "v_gqa",
+        "attention_scores",
+        "attention_scores_masked",
+        "attention_weights",
+        "attention_output_heads",
+        "attention_merged",
+        "o_proj",
+        "after_attention_residual",
+        "norm2",
+        "mlp_gate",
+        "mlp_up",
+        "mlp_silu_gate",
+        "mlp_hidden",
+        "mlp_down",
+        "layer_output",
+    ]
+
+    for name in debug_items:
+
+        print(
+            f"{name:<32}",
+            tensor_stats(
+                captured[name]
+            ),
+        )
+
+    return captured
+
+# ============================================================
+# TEST 8 DEBUG
 # ============================================================
 
 def test_numerical_parity(
     official,
     tiny,
 ):
-    section("TEST 8: NUMERICAL FORWARD PARITY")
+    section(
+        "TEST 8: NUMERICAL FORWARD PARITY"
+    )
 
     device = next(
         official.parameters()
@@ -1270,9 +2320,9 @@ def test_numerical_parity(
         tokens[0].tolist()
     )
 
-    # --------------------------------------------------------
-    # Official
-    # --------------------------------------------------------
+    # ========================================================
+    # First: original layer-by-layer test
+    # ========================================================
 
     official_final, official_hidden = (
         official_forward(
@@ -1281,10 +2331,6 @@ def test_numerical_parity(
         )
     )
 
-    # --------------------------------------------------------
-    # TinyLM
-    # --------------------------------------------------------
-
     tiny_final, tiny_hidden, tiny_logits = (
         tiny_forward(
             tiny,
@@ -1292,47 +2338,19 @@ def test_numerical_parity(
         )
     )
 
-    # --------------------------------------------------------
-    # Embedding parity
-    # --------------------------------------------------------
-
-    official_embedding = (
-        official_hidden[0]
-    )
-
-    tiny_embedding = (
-        tiny_hidden[0]
-    )
-
     compare_tensors(
         "embedding output",
-        official_embedding,
-        tiny_embedding,
+        official_hidden[0],
+        tiny_hidden[0],
     )
 
     # --------------------------------------------------------
-    # Layer parity
+    # Verify layers 0..28
     # --------------------------------------------------------
-
-    if len(official_hidden) != (
-        NUM_LAYERS + 1
-    ):
-        raise AssertionError(
-            "Unexpected number of official hidden states:\n"
-            f"{len(official_hidden)}"
-        )
-
-    if len(tiny_hidden) != (
-        NUM_LAYERS + 1
-    ):
-        raise AssertionError(
-            "Unexpected number of TinyLM hidden states:\n"
-            f"{len(tiny_hidden)}"
-        )
 
     for i in range(
         1,
-        NUM_LAYERS + 1,
+        30,
     ):
 
         compare_tensors(
@@ -1341,19 +2359,320 @@ def test_numerical_parity(
             tiny_hidden[i],
         )
 
+    # ========================================================
+    # Layer 29 detailed debug
+    # ========================================================
+
+    print()
+    print("=" * 72)
+    print(
+        "DETAILED DEBUG: LAYER 29"
+    )
+    print("=" * 72)
+
+    print()
+    print(
+        "[1] Capturing official MobileLLM layer 29..."
+    )
+
+    official_debug = (
+        capture_official_layer29(
+            official,
+            tokens,
+        )
+    )
+
+    print(
+        "[2] Capturing TinyLM layer 29..."
+    )
+
+    tiny_debug = (
+        capture_tiny_layer29(
+            tiny,
+            tokens,
+        )
+    )
+
     # --------------------------------------------------------
-    # Final norm parity
+    # Important comparison sequence
     # --------------------------------------------------------
+
+    debug_order = [
+
+        # Layer input
+        (
+            "layer29 input",
+            "layer_input",
+            "layer_input",
+        ),
+
+        # Norm
+        (
+            "layer29 norm1",
+            "norm1",
+            "norm1",
+        ),
+
+        # Q/K/V
+        (
+            "layer29 q_proj",
+            "q_proj",
+            "q_proj",
+        ),
+
+        (
+            "layer29 k_proj",
+            "k_proj",
+            "k_proj",
+        ),
+
+        (
+            "layer29 v_proj",
+            "v_proj",
+            "v_proj",
+        ),
+
+        # Reshape
+        (
+            "layer29 q reshaped",
+            "q_proj",
+            "q_reshaped",
+        ),
+
+        # RoPE
+        (
+            "layer29 q after RoPE",
+            None,
+            "q_rope",
+        ),
+
+        (
+            "layer29 k after RoPE",
+            None,
+            "k_rope",
+        ),
+
+        # Attention
+        (
+            "layer29 attention scores",
+            None,
+            "attention_scores",
+        ),
+
+        (
+            "layer29 attention scores masked",
+            None,
+            "attention_scores_masked",
+        ),
+
+        (
+            "layer29 attention weights",
+            None,
+            "attention_weights",
+        ),
+
+        (
+            "layer29 attention output",
+            None,
+            "attention_output_heads",
+        ),
+
+        (
+            "layer29 attention merged",
+            None,
+            "attention_merged",
+        ),
+
+        (
+            "layer29 o_proj",
+            "o_proj",
+            "o_proj",
+        ),
+
+        (
+            "layer29 after attention residual",
+            None,
+            "after_attention_residual",
+        ),
+
+        # MLP
+        (
+            "layer29 norm2",
+            "norm2",
+            "norm2",
+        ),
+
+        (
+            "layer29 MLP gate",
+            "mlp_gate",
+            "mlp_gate",
+        ),
+
+        (
+            "layer29 MLP up",
+            "mlp_up",
+            "mlp_up",
+        ),
+
+        (
+            "layer29 MLP down",
+            "mlp_down",
+            "mlp_down",
+        ),
+
+        (
+            "layer29 final output",
+            "layer_output",
+            "layer_output",
+        ),
+    ]
+
+    print()
+
+    first_failure = None
+
+    # --------------------------------------------------------
+    # We cannot directly compare some internal official
+    # tensors because HF combines those operations inside
+    # LlamaAttention. Therefore use hooks where available
+    # and explicitly reconstruct the TinyLM side.
+    # --------------------------------------------------------
+
+    # Directly useful hook comparisons first.
+    hook_comparisons = [
+        (
+            "layer29 input",
+            "layer_input",
+            "layer_input",
+        ),
+        (
+            "layer29 norm1",
+            "norm1",
+            "norm1",
+        ),
+        (
+            "layer29 q_proj",
+            "q_proj",
+            "q_proj",
+        ),
+        (
+            "layer29 k_proj",
+            "k_proj",
+            "k_proj",
+        ),
+        (
+            "layer29 v_proj",
+            "v_proj",
+            "v_proj",
+        ),
+        (
+            "layer29 o_proj",
+            "o_proj",
+            "o_proj",
+        ),
+        (
+            "layer29 norm2",
+            "norm2",
+            "norm2",
+        ),
+        (
+            "layer29 mlp gate",
+            "mlp_gate",
+            "mlp_gate",
+        ),
+        (
+            "layer29 mlp up",
+            "mlp_up",
+            "mlp_up",
+        ),
+        (
+            "layer29 mlp down",
+            "mlp_down",
+            "mlp_down",
+        ),
+        (
+            "layer29 output",
+            "layer_output",
+            "layer_output",
+        ),
+    ]
+
+    for (
+        name,
+        official_key,
+        tiny_key,
+    ) in hook_comparisons:
+
+        ok = debug_compare(
+            name,
+            official_debug[
+                official_key
+            ],
+            tiny_debug[
+                tiny_key
+            ],
+        )
+
+        if not ok and first_failure is None:
+            first_failure = name
+
+    # ========================================================
+    # Important diagnosis
+    # ========================================================
+
+    print()
+    print("=" * 72)
+    print(
+        "LAYER 29 DIAGNOSTIC RESULT"
+    )
+    print("=" * 72)
+
+    if first_failure is None:
+
+        print(
+            "[PASS] All directly captured layer-29 "
+            "submodules match."
+        )
+
+        print(
+            "[INFO] If the original layer-29 comparison "
+            "still fails, the remaining candidate is "
+            "the attention internal computation/mask."
+        )
+
+    else:
+
+        print()
+        print(
+            "[FIRST DIVERGENCE]"
+        )
+
+        print(
+            f"    {first_failure}"
+        )
+
+        print()
+
+        print(
+            "This is the operation where the official "
+            "and TinyLM implementations first differ."
+        )
+
+        print(
+            "Do NOT change weights or tolerances yet."
+        )
+
+    # ========================================================
+    # Original final comparisons
+    # ========================================================
+
+    print()
 
     compare_tensors(
         "final hidden state",
         official_final,
         tiny_final,
     )
-
-    # --------------------------------------------------------
-    # Official logits
-    # --------------------------------------------------------
 
     with torch.no_grad():
 
@@ -1367,10 +2686,6 @@ def test_numerical_parity(
             official_output.logits
         )
 
-    # --------------------------------------------------------
-    # TinyLM logits
-    # --------------------------------------------------------
-
     compare_tensors(
         "final logits",
         official_logits,
@@ -1378,23 +2693,64 @@ def test_numerical_parity(
     )
 
     print()
+
+
+    official_layer29_output = (
+        official_debug["layer_output"]
+    )
+    
+    tiny_layer29_output = (
+        tiny_debug["layer_output"]
+    )
+    
+    print()
+    print("========== LAYER 29 OUTPUT ==========")
+    
     print(
-        "[PASS] Embedding numerical parity"
+        "Official type:",
+        type(official_layer29_output),
+    )
+    
+    print(
+        "TinyLM type:",
+        type(tiny_layer29_output),
+    )
+    
+    if not torch.is_tensor(
+        official_layer29_output
+    ):
+        raise AssertionError(
+            "BUG IN TEST: Official layer29 output "
+            "must be Tensor, but got "
+            f"{type(official_layer29_output)}"
+        )
+    
+    if not torch.is_tensor(
+        tiny_layer29_output
+    ):
+        raise AssertionError(
+            "BUG IN TEST: TinyLM layer29 output "
+            "must be Tensor, but got "
+            f"{type(tiny_layer29_output)}"
+        )
+    
+    compare_tensors(
+        "layer29 output",
+        official_layer29_output,
+        tiny_layer29_output,
     )
 
-    print(
-        f"[PASS] {NUM_LAYERS} layer hidden-state "
-        f"numerical parity"
-    )
+
+    if first_failure is not None:
+
+        raise AssertionError(
+            "Layer 29 detailed numerical parity failed "
+            f"first at: {first_failure}"
+        )
 
     print(
-        "[PASS] Final hidden-state numerical parity"
+        "[PASS] Detailed layer-29 diagnostic"
     )
-
-    print(
-        "[PASS] Final logits numerical parity"
-    )
-
 
 # ============================================================
 # Output projection semantic test

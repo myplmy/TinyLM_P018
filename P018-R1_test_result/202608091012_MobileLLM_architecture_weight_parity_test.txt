@@ -1,0 +1,536 @@
+(p018) z:\TinyLM_P018>python test_mobile_weight_parity.py
+[PASS] Official MobileLLM source loaded:
+       Z:\TinyLM_P018\MobileLLM\utils\modeling_llama.py
+
+########################################################################
+# TinyLM_P018 MobileLLM-125M Weight + Numerical Parity
+########################################################################
+
+PyTorch       : 2.13.0+cpu
+Transformers  : 4.41.2
+CUDA          : False
+
+========================================================================
+MODEL CONSTRUCTION
+========================================================================
+[PASS] Official MobileLLM constructed on cpu
+[PASS] TinyLM MobileLLM constructed on cpu
+
+========================================================================
+TEST 1: CONFIGURATION PARITY
+========================================================================
+[PASS] hidden_size: 576 == 576
+[PASS] intermediate_size: 1536 == 1536
+[PASS] num_hidden_layers: 30 == 30
+[PASS] num_attention_heads: 9 == 9
+[PASS] num_key_value_heads: 3 == 3
+[PASS] vocab_size: 32000 == 32000
+[PASS] max_position_embeddings: 2048 == 2048
+[PASS] rope_theta: 10000.0 == 10000.0
+[PASS] rms_norm_eps: 1e-05 == 1e-05
+[PASS] initializer_range: 0.02 == 0.02
+[PASS] Official share_embedding=True
+[PASS] TinyLM tie_word_embeddings=False
+[PASS] TinyLM base parity uses independent Dense MLPs
+
+========================================================================
+TEST 2: PARAMETER COUNT
+========================================================================
+Official MobileLLM : 124,635,456
+TinyLM             : 124,635,456
+Official unique    : 124,635,456
+TinyLM unique      : 124,635,456
+Expected           : 124,635,456
+Untied diagnostic  : 143,067,456
+[PASS] Official parameter count
+[PASS] TinyLM parameter count
+[PASS] Unique parameter storage count
+
+========================================================================
+TEST 3: EMBEDDING / OUTPUT PROJECTION
+========================================================================
+[PASS] embedding shape = (32000, 576)
+[PASS] TinyLM lm_head.weight is exactly the embedding Parameter
+[PASS] Official MobileLLM uses shared input/output embedding
+
+========== DEBUG TINYLM PARAMETER NAMES ==========
+emb.weight (32000, 576)
+layers.0.norm1.weight (576,)
+layers.0.attn.q_proj.weight (576, 576)
+layers.0.attn.k_proj.weight (192, 576)
+layers.0.attn.v_proj.weight (192, 576)
+layers.0.attn.o_proj.weight (576, 576)
+layers.0.norm2.weight (576,)
+layers.0.mlp.gate_proj.weight (1536, 576)
+layers.0.mlp.up_proj.weight (1536, 576)
+layers.0.mlp.down_proj.weight (576, 1536)
+layers.1.norm1.weight (576,)
+layers.1.attn.q_proj.weight (576, 576)
+layers.1.attn.k_proj.weight (192, 576)
+layers.1.attn.v_proj.weight (192, 576)
+layers.1.attn.o_proj.weight (576, 576)
+layers.1.norm2.weight (576,)
+layers.1.mlp.gate_proj.weight (1536, 576)
+layers.1.mlp.up_proj.weight (1536, 576)
+layers.1.mlp.down_proj.weight (576, 1536)
+layers.2.norm1.weight (576,)
+layers.2.attn.q_proj.weight (576, 576)
+layers.2.attn.k_proj.weight (192, 576)
+layers.2.attn.v_proj.weight (192, 576)
+layers.2.attn.o_proj.weight (576, 576)
+layers.2.norm2.weight (576,)
+layers.2.mlp.gate_proj.weight (1536, 576)
+layers.2.mlp.up_proj.weight (1536, 576)
+layers.2.mlp.down_proj.weight (576, 1536)
+layers.3.norm1.weight (576,)
+layers.3.attn.q_proj.weight (576, 576)
+layers.3.attn.k_proj.weight (192, 576)
+layers.3.attn.v_proj.weight (192, 576)
+layers.3.attn.o_proj.weight (576, 576)
+layers.3.norm2.weight (576,)
+layers.3.mlp.gate_proj.weight (1536, 576)
+layers.3.mlp.up_proj.weight (1536, 576)
+layers.3.mlp.down_proj.weight (576, 1536)
+layers.4.norm1.weight (576,)
+layers.4.attn.q_proj.weight (576, 576)
+layers.4.attn.k_proj.weight (192, 576)
+layers.4.attn.v_proj.weight (192, 576)
+layers.4.attn.o_proj.weight (576, 576)
+layers.4.norm2.weight (576,)
+layers.4.mlp.gate_proj.weight (1536, 576)
+layers.4.mlp.up_proj.weight (1536, 576)
+layers.4.mlp.down_proj.weight (576, 1536)
+layers.5.norm1.weight (576,)
+layers.5.attn.q_proj.weight (576, 576)
+layers.5.attn.k_proj.weight (192, 576)
+layers.5.attn.v_proj.weight (192, 576)
+layers.5.attn.o_proj.weight (576, 576)
+layers.5.norm2.weight (576,)
+layers.5.mlp.gate_proj.weight (1536, 576)
+layers.5.mlp.up_proj.weight (1536, 576)
+layers.5.mlp.down_proj.weight (576, 1536)
+layers.6.norm1.weight (576,)
+layers.6.attn.q_proj.weight (576, 576)
+layers.6.attn.k_proj.weight (192, 576)
+layers.6.attn.v_proj.weight (192, 576)
+layers.6.attn.o_proj.weight (576, 576)
+layers.6.norm2.weight (576,)
+layers.6.mlp.gate_proj.weight (1536, 576)
+layers.6.mlp.up_proj.weight (1536, 576)
+layers.6.mlp.down_proj.weight (576, 1536)
+layers.7.norm1.weight (576,)
+layers.7.attn.q_proj.weight (576, 576)
+layers.7.attn.k_proj.weight (192, 576)
+layers.7.attn.v_proj.weight (192, 576)
+layers.7.attn.o_proj.weight (576, 576)
+layers.7.norm2.weight (576,)
+layers.7.mlp.gate_proj.weight (1536, 576)
+layers.7.mlp.up_proj.weight (1536, 576)
+layers.7.mlp.down_proj.weight (576, 1536)
+layers.8.norm1.weight (576,)
+layers.8.attn.q_proj.weight (576, 576)
+layers.8.attn.k_proj.weight (192, 576)
+layers.8.attn.v_proj.weight (192, 576)
+layers.8.attn.o_proj.weight (576, 576)
+layers.8.norm2.weight (576,)
+layers.8.mlp.gate_proj.weight (1536, 576)
+layers.8.mlp.up_proj.weight (1536, 576)
+layers.8.mlp.down_proj.weight (576, 1536)
+layers.9.norm1.weight (576,)
+layers.9.attn.q_proj.weight (576, 576)
+layers.9.attn.k_proj.weight (192, 576)
+layers.9.attn.v_proj.weight (192, 576)
+layers.9.attn.o_proj.weight (576, 576)
+layers.9.norm2.weight (576,)
+layers.9.mlp.gate_proj.weight (1536, 576)
+layers.9.mlp.up_proj.weight (1536, 576)
+layers.9.mlp.down_proj.weight (576, 1536)
+layers.10.norm1.weight (576,)
+layers.10.attn.q_proj.weight (576, 576)
+layers.10.attn.k_proj.weight (192, 576)
+layers.10.attn.v_proj.weight (192, 576)
+layers.10.attn.o_proj.weight (576, 576)
+layers.10.norm2.weight (576,)
+layers.10.mlp.gate_proj.weight (1536, 576)
+layers.10.mlp.up_proj.weight (1536, 576)
+layers.10.mlp.down_proj.weight (576, 1536)
+layers.11.norm1.weight (576,)
+layers.11.attn.q_proj.weight (576, 576)
+layers.11.attn.k_proj.weight (192, 576)
+layers.11.attn.v_proj.weight (192, 576)
+layers.11.attn.o_proj.weight (576, 576)
+layers.11.norm2.weight (576,)
+layers.11.mlp.gate_proj.weight (1536, 576)
+layers.11.mlp.up_proj.weight (1536, 576)
+layers.11.mlp.down_proj.weight (576, 1536)
+layers.12.norm1.weight (576,)
+layers.12.attn.q_proj.weight (576, 576)
+layers.12.attn.k_proj.weight (192, 576)
+layers.12.attn.v_proj.weight (192, 576)
+layers.12.attn.o_proj.weight (576, 576)
+layers.12.norm2.weight (576,)
+layers.12.mlp.gate_proj.weight (1536, 576)
+layers.12.mlp.up_proj.weight (1536, 576)
+layers.12.mlp.down_proj.weight (576, 1536)
+layers.13.norm1.weight (576,)
+layers.13.attn.q_proj.weight (576, 576)
+layers.13.attn.k_proj.weight (192, 576)
+layers.13.attn.v_proj.weight (192, 576)
+layers.13.attn.o_proj.weight (576, 576)
+layers.13.norm2.weight (576,)
+layers.13.mlp.gate_proj.weight (1536, 576)
+layers.13.mlp.up_proj.weight (1536, 576)
+layers.13.mlp.down_proj.weight (576, 1536)
+layers.14.norm1.weight (576,)
+layers.14.attn.q_proj.weight (576, 576)
+layers.14.attn.k_proj.weight (192, 576)
+layers.14.attn.v_proj.weight (192, 576)
+layers.14.attn.o_proj.weight (576, 576)
+layers.14.norm2.weight (576,)
+layers.14.mlp.gate_proj.weight (1536, 576)
+layers.14.mlp.up_proj.weight (1536, 576)
+layers.14.mlp.down_proj.weight (576, 1536)
+layers.15.norm1.weight (576,)
+layers.15.attn.q_proj.weight (576, 576)
+layers.15.attn.k_proj.weight (192, 576)
+layers.15.attn.v_proj.weight (192, 576)
+layers.15.attn.o_proj.weight (576, 576)
+layers.15.norm2.weight (576,)
+layers.15.mlp.gate_proj.weight (1536, 576)
+layers.15.mlp.up_proj.weight (1536, 576)
+layers.15.mlp.down_proj.weight (576, 1536)
+layers.16.norm1.weight (576,)
+layers.16.attn.q_proj.weight (576, 576)
+layers.16.attn.k_proj.weight (192, 576)
+layers.16.attn.v_proj.weight (192, 576)
+layers.16.attn.o_proj.weight (576, 576)
+layers.16.norm2.weight (576,)
+layers.16.mlp.gate_proj.weight (1536, 576)
+layers.16.mlp.up_proj.weight (1536, 576)
+layers.16.mlp.down_proj.weight (576, 1536)
+layers.17.norm1.weight (576,)
+layers.17.attn.q_proj.weight (576, 576)
+layers.17.attn.k_proj.weight (192, 576)
+layers.17.attn.v_proj.weight (192, 576)
+layers.17.attn.o_proj.weight (576, 576)
+layers.17.norm2.weight (576,)
+layers.17.mlp.gate_proj.weight (1536, 576)
+layers.17.mlp.up_proj.weight (1536, 576)
+layers.17.mlp.down_proj.weight (576, 1536)
+layers.18.norm1.weight (576,)
+layers.18.attn.q_proj.weight (576, 576)
+layers.18.attn.k_proj.weight (192, 576)
+layers.18.attn.v_proj.weight (192, 576)
+layers.18.attn.o_proj.weight (576, 576)
+layers.18.norm2.weight (576,)
+layers.18.mlp.gate_proj.weight (1536, 576)
+layers.18.mlp.up_proj.weight (1536, 576)
+layers.18.mlp.down_proj.weight (576, 1536)
+layers.19.norm1.weight (576,)
+layers.19.attn.q_proj.weight (576, 576)
+layers.19.attn.k_proj.weight (192, 576)
+layers.19.attn.v_proj.weight (192, 576)
+layers.19.attn.o_proj.weight (576, 576)
+layers.19.norm2.weight (576,)
+layers.19.mlp.gate_proj.weight (1536, 576)
+layers.19.mlp.up_proj.weight (1536, 576)
+layers.19.mlp.down_proj.weight (576, 1536)
+layers.20.norm1.weight (576,)
+layers.20.attn.q_proj.weight (576, 576)
+layers.20.attn.k_proj.weight (192, 576)
+layers.20.attn.v_proj.weight (192, 576)
+layers.20.attn.o_proj.weight (576, 576)
+layers.20.norm2.weight (576,)
+layers.20.mlp.gate_proj.weight (1536, 576)
+layers.20.mlp.up_proj.weight (1536, 576)
+layers.20.mlp.down_proj.weight (576, 1536)
+layers.21.norm1.weight (576,)
+layers.21.attn.q_proj.weight (576, 576)
+layers.21.attn.k_proj.weight (192, 576)
+layers.21.attn.v_proj.weight (192, 576)
+layers.21.attn.o_proj.weight (576, 576)
+layers.21.norm2.weight (576,)
+layers.21.mlp.gate_proj.weight (1536, 576)
+layers.21.mlp.up_proj.weight (1536, 576)
+layers.21.mlp.down_proj.weight (576, 1536)
+layers.22.norm1.weight (576,)
+layers.22.attn.q_proj.weight (576, 576)
+layers.22.attn.k_proj.weight (192, 576)
+layers.22.attn.v_proj.weight (192, 576)
+layers.22.attn.o_proj.weight (576, 576)
+layers.22.norm2.weight (576,)
+layers.22.mlp.gate_proj.weight (1536, 576)
+layers.22.mlp.up_proj.weight (1536, 576)
+layers.22.mlp.down_proj.weight (576, 1536)
+layers.23.norm1.weight (576,)
+layers.23.attn.q_proj.weight (576, 576)
+layers.23.attn.k_proj.weight (192, 576)
+layers.23.attn.v_proj.weight (192, 576)
+layers.23.attn.o_proj.weight (576, 576)
+layers.23.norm2.weight (576,)
+layers.23.mlp.gate_proj.weight (1536, 576)
+layers.23.mlp.up_proj.weight (1536, 576)
+layers.23.mlp.down_proj.weight (576, 1536)
+layers.24.norm1.weight (576,)
+layers.24.attn.q_proj.weight (576, 576)
+layers.24.attn.k_proj.weight (192, 576)
+layers.24.attn.v_proj.weight (192, 576)
+layers.24.attn.o_proj.weight (576, 576)
+layers.24.norm2.weight (576,)
+layers.24.mlp.gate_proj.weight (1536, 576)
+layers.24.mlp.up_proj.weight (1536, 576)
+layers.24.mlp.down_proj.weight (576, 1536)
+layers.25.norm1.weight (576,)
+layers.25.attn.q_proj.weight (576, 576)
+layers.25.attn.k_proj.weight (192, 576)
+layers.25.attn.v_proj.weight (192, 576)
+layers.25.attn.o_proj.weight (576, 576)
+layers.25.norm2.weight (576,)
+layers.25.mlp.gate_proj.weight (1536, 576)
+layers.25.mlp.up_proj.weight (1536, 576)
+layers.25.mlp.down_proj.weight (576, 1536)
+layers.26.norm1.weight (576,)
+layers.26.attn.q_proj.weight (576, 576)
+layers.26.attn.k_proj.weight (192, 576)
+layers.26.attn.v_proj.weight (192, 576)
+layers.26.attn.o_proj.weight (576, 576)
+layers.26.norm2.weight (576,)
+layers.26.mlp.gate_proj.weight (1536, 576)
+layers.26.mlp.up_proj.weight (1536, 576)
+layers.26.mlp.down_proj.weight (576, 1536)
+layers.27.norm1.weight (576,)
+layers.27.attn.q_proj.weight (576, 576)
+layers.27.attn.k_proj.weight (192, 576)
+layers.27.attn.v_proj.weight (192, 576)
+layers.27.attn.o_proj.weight (576, 576)
+layers.27.norm2.weight (576,)
+layers.27.mlp.gate_proj.weight (1536, 576)
+layers.27.mlp.up_proj.weight (1536, 576)
+layers.27.mlp.down_proj.weight (576, 1536)
+layers.28.norm1.weight (576,)
+layers.28.attn.q_proj.weight (576, 576)
+layers.28.attn.k_proj.weight (192, 576)
+layers.28.attn.v_proj.weight (192, 576)
+layers.28.attn.o_proj.weight (576, 576)
+layers.28.norm2.weight (576,)
+layers.28.mlp.gate_proj.weight (1536, 576)
+layers.28.mlp.up_proj.weight (1536, 576)
+layers.28.mlp.down_proj.weight (576, 1536)
+layers.29.norm1.weight (576,)
+layers.29.attn.q_proj.weight (576, 576)
+layers.29.attn.k_proj.weight (192, 576)
+layers.29.attn.v_proj.weight (192, 576)
+layers.29.attn.o_proj.weight (576, 576)
+layers.29.norm2.weight (576,)
+layers.29.mlp.gate_proj.weight (1536, 576)
+layers.29.mlp.up_proj.weight (1536, 576)
+layers.29.mlp.down_proj.weight (576, 1536)
+norm.weight (576,)
+
+========== DEBUG LAYER 0 MLP ==========
+layer0.mlp type: <class 'tinylm.model.modules.MobileMLP'>
+layer0.mlp: MobileMLP(
+  (gate_proj): Linear(in_features=576, out_features=1536, bias=False)
+  (up_proj): Linear(in_features=576, out_features=1536, bias=False)
+  (down_proj): Linear(in_features=1536, out_features=576, bias=False)
+)
+layer0.mlp named parameters:
+   gate_proj.weight (1536, 576)
+   up_proj.weight (1536, 576)
+   down_proj.weight (576, 1536)
+
+layer0._modules:
+{'norm1': MobileRMSNorm(), 'attn': MobileAttention(
+  (q_proj): Linear(in_features=576, out_features=576, bias=False)
+  (k_proj): Linear(in_features=576, out_features=192, bias=False)
+  (v_proj): Linear(in_features=576, out_features=192, bias=False)
+  (o_proj): Linear(in_features=576, out_features=576, bias=False)
+), 'norm2': MobileRMSNorm(), 'mlp': MobileMLP(
+  (gate_proj): Linear(in_features=576, out_features=1536, bias=False)
+  (up_proj): Linear(in_features=576, out_features=1536, bias=False)
+  (down_proj): Linear(in_features=1536, out_features=576, bias=False)
+)}
+
+========================================================================
+TEST 4: EXPLICIT PARAMETER MAPPING
+========================================================================
+Expected mapped tensors : 272
+[PASS] All canonical parameters exist.
+[PASS] All canonical parameter shapes match.
+
+========================================================================
+TEST 5: UNEXPECTED PARAMETER DETECTION
+========================================================================
+Official parameter tensors : 272
+TinyLM parameter tensors    : 272
+Canonical mapped tensors    : 272
+[PASS] emb.weight and lm_head.weight share storage.
+
+========================================================================
+TEST 6: OFFICIAL → TINYLM WEIGHT COPY
+========================================================================
+[PASS] Copied 272 canonical parameter tensors.
+
+========================================================================
+TEST 7: WEIGHT NUMERICAL PARITY
+========================================================================
+[PASS] All 272 mapped tensors are numerically identical.
+Global max abs difference : 0.000000e+00
+Global max rel difference : 0.000000e+00
+
+========================================================================
+TEST 8: NUMERICAL FORWARD PARITY
+========================================================================
+Input token shape: (2, 8)
+Input token IDs: [9775, 9171, 806, 13365, 26316, 8564, 1432, 5625]
+[PASS] embedding output                           max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 00 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 01 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 02 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 03 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 04 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 05 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 06 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 07 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 08 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 09 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 10 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 11 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 12 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 13 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 14 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 15 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 16 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 17 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 18 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 19 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 20 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 21 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 22 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 23 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 24 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 25 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 26 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 27 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] layer 28 hidden state                      max_abs=0.000000e+00 max_rel=0.000000e+00
+
+========================================================================
+DETAILED DEBUG: LAYER 29
+========================================================================
+
+[1] Capturing official MobileLLM layer 29...
+[PASS] official layer29 output -> final norm      max_abs=0.000000e+00 max_rel=0.000000e+00
+[2] Capturing TinyLM layer 29...
+
+---------- TinyLM Layer 29 Detailed Debug ----------
+layer_input                      {'shape': (2, 8, 576), 'mean': 0.03411371633410454, 'std': 1.2643407583236694, 'abs_max': 5.34750509262085}
+norm1                            {'shape': (2, 8, 576), 'mean': 0.02682642452418804, 'std': 0.9996911883354187, 'abs_max': 3.968487024307251}
+q_proj                           {'shape': (2, 8, 576), 'mean': -0.013015376403927803, 'std': 0.4657095968723297, 'abs_max': 1.81076180934906}
+k_proj                           {'shape': (2, 8, 192), 'mean': 0.028884803876280785, 'std': 0.47763535380363464, 'abs_max': 1.9003188610076904}
+v_proj                           {'shape': (2, 8, 192), 'mean': 0.010379824787378311, 'std': 0.4801722764968872, 'abs_max': 1.5465385913848877}
+q_reshaped                       {'shape': (2, 9, 8, 64), 'mean': -0.013015376403927803, 'std': 0.4657095968723297, 'abs_max': 1.81076180934906}
+k_reshaped                       {'shape': (2, 3, 8, 64), 'mean': 0.028884803876280785, 'std': 0.47763535380363464, 'abs_max': 1.9003188610076904}
+v_reshaped                       {'shape': (2, 3, 8, 64), 'mean': 0.010379824787378311, 'std': 0.4801722764968872, 'abs_max': 1.5465385913848877}
+q_rope                           {'shape': (2, 9, 8, 64), 'mean': -0.011273226700723171, 'std': 0.46575501561164856, 'abs_max': 1.81076180934906}
+k_rope                           {'shape': (2, 3, 8, 64), 'mean': 0.013758327811956406, 'std': 0.47831034660339355, 'abs_max': 1.887128472328186}
+k_gqa                            {'shape': (2, 9, 8, 64), 'mean': 0.013758327811956406, 'std': 0.4782584607601166, 'abs_max': 1.887128472328186}
+v_gqa                            {'shape': (2, 9, 8, 64), 'mean': 0.010379827581346035, 'std': 0.4801201820373535, 'abs_max': 1.5465385913848877}
+attention_scores                 {'shape': (2, 9, 8, 8), 'mean': -0.023931918665766716, 'std': 0.22332794964313507, 'abs_max': 0.7319357395172119}
+attention_scores_masked          {'shape': (2, 9, 8, 8), 'mean': -inf, 'std': inf, 'abs_max': 3.4028234663852886e+38}
+attention_weights                {'shape': (2, 9, 8, 8), 'mean': 0.125, 'std': 0.16449205577373505, 'abs_max': 1.0}
+attention_output_heads           {'shape': (2, 9, 8, 64), 'mean': 0.009629721753299236, 'std': 0.4691723883152008, 'abs_max': 1.5465385913848877}
+attention_merged                 {'shape': (2, 8, 576), 'mean': 0.009629719890654087, 'std': 0.4691723883152008, 'abs_max': 1.5465385913848877}
+o_proj                           {'shape': (2, 8, 576), 'mean': -0.0013708103215321898, 'std': 0.22144687175750732, 'abs_max': 0.7422212958335876}
+after_attention_residual         {'shape': (2, 8, 576), 'mean': 0.032742902636528015, 'std': 1.2810028791427612, 'abs_max': 5.089701175689697}
+norm2                            {'shape': (2, 8, 576), 'mean': 0.025501785799860954, 'std': 0.9997259378433228, 'abs_max': 3.763899803161621}
+mlp_gate                         {'shape': (2, 8, 1536), 'mean': -0.0035585106816142797, 'std': 0.48028188943862915, 'abs_max': 1.9184694290161133}
+mlp_up                           {'shape': (2, 8, 1536), 'mean': -0.011696461588144302, 'std': 0.4802728593349457, 'abs_max': 1.8166265487670898}
+mlp_silu_gate                    {'shape': (2, 8, 1536), 'mean': 0.05288052186369896, 'std': 0.2500763237476349, 'abs_max': 1.5919941663742065}
+mlp_hidden                       {'shape': (2, 8, 1536), 'mean': -0.00010688983456930146, 'std': 0.12911678850650787, 'abs_max': 1.6491515636444092}
+mlp_down                         {'shape': (2, 8, 576), 'mean': 0.0008537812391296029, 'std': 0.10285302251577377, 'abs_max': 0.3851824998855591}
+layer_output                     {'shape': (2, 8, 576), 'mean': 0.03359668329358101, 'std': 1.2817836999893188, 'abs_max': 5.155961513519287}
+
+[PASS] layer29 input                          abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 norm1                          abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 q_proj                         abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 k_proj                         abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 v_proj                         abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 o_proj                         abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 norm2                          abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 mlp gate                       abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 mlp up                         abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 mlp down                       abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+[PASS] layer29 output                         abs=0.000000e+00 rel=0.000000e+00 mean=0.000000e+00
+
+========================================================================
+LAYER 29 DIAGNOSTIC RESULT
+========================================================================
+[PASS] All directly captured layer-29 submodules match.
+[INFO] If the original layer-29 comparison still fails, the remaining candidate is the attention internal computation/mask.
+
+[PASS] final hidden state                         max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] final logits                               max_abs=0.000000e+00 max_rel=0.000000e+00
+
+
+========== LAYER 29 OUTPUT ==========
+Official type: <class 'torch.Tensor'>
+TinyLM type: <class 'torch.Tensor'>
+[PASS] layer29 output                             max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] Detailed layer-29 diagnostic
+
+========================================================================
+TEST 9: OUTPUT PROJECTION SEMANTICS
+========================================================================
+[PASS] F.linear(x, emb.weight) vs lm_head(x)      max_abs=0.000000e+00 max_rel=0.000000e+00
+[PASS] TinyLM output projection exactly uses embedding weight.
+
+========================================================================
+TEST 10: DENSE MLP STRUCTURE
+========================================================================
+Layers          : 30
+Unique MLPs      : 30
+[PASS] Dense MobileLLM contains 30 independent MLP objects.
+
+========================================================================
+TEST 11: ATTENTION STRUCTURE
+========================================================================
+[PASS] All attention projections have MobileLLM 125M dimensions.
+[PASS] 30 unique attention modules.
+
+========================================================================
+TEST 12: HF LLAMA AUXILIARY SANITY CHECK
+========================================================================
+[PASS] HF LLaMA configuration sanity check.
+[INFO] HF LLaMA is auxiliary only; official MobileLLM remains the reference.
+
+========================================================================
+FINAL PARITY REPORT
+========================================================================
+Official MobileLLM parameters : 124,635,456
+TinyLM parameters             : 124,635,456
+Parameter difference          : 0
+
+Architecture:
+  hidden size       = 576
+  intermediate size = 1536
+  layers            = 30
+  Q/KV heads        = 9/3
+  head dimension    = 64
+  vocabulary        = 32000
+  context           = 2048
+  RoPE theta        = 10000.0
+  RMSNorm epsilon   = 1e-05
+
+Weight sharing:
+  input/output embedding = SHARED
+  MLP sharing            = NONE (Dense)
+
+Result:
+  ARCHITECTURE PARITY    = PASS
+  WEIGHT PARITY          = PASS
+  NUMERICAL FORWARD      = PASS
+  LOGITS PARITY          = PASS
+
+########################################################################
+# ALL MOBILELLM PARITY TESTS PASSED
+########################################################################
