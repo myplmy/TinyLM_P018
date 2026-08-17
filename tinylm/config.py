@@ -57,7 +57,14 @@ class TMTConfig:
 
     # --- initialization / output head ---
     initializer_range: float = 0.02
+    
+    # Hugging Face compatibility field.
+    # NOT used to control MobileLLM embedding sharing.
     tie_word_embeddings: bool = True
+    
+    # MobileLLM-specific structural property:
+    # input embedding and LM output projection share
+    # the same Parameter when True.
     share_embedding: bool = False
 
     grad_checkpoint: bool = False
@@ -219,8 +226,9 @@ def _mobile125(seq, ckpt):
         # MobileLLM initialization.
         initializer_range=0.02,
 
-        # MobileLLM config:
-        # tie_word_embeddings = false
+        # MobileLLM-125M config:
+        # share_embedding=True is the actual structural property.
+        # tie_word_embeddings=False is the HF config value.
         share_embedding=True,
         tie_word_embeddings=False,
 
