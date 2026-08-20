@@ -14,6 +14,7 @@ VOCAB = 32768
 class TMTConfig:
     # --- model family ---
     model_family: str = "p018"     # p018 | mobile
+    tokenizer_kind: str = "tiny_bpe"  # tiny_bpe | mobilellm_32k
     # --- shape ---
     vocab_size: int = 32768
     dim: int = 768
@@ -94,10 +95,16 @@ class TMTConfig:
 
     def __post_init__(self):
         assert self.model_family in ("p018", "mobile")
+        assert self.tokenizer_kind in ("tiny_bpe", "mobilellm_32k")
         assert self.dim % self.n_q_heads == 0
         assert self.n_q_heads % self.n_kv_heads == 0
         assert self.dim % self.micro_group == 0 and self.ffn_dim % self.micro_group == 0
         assert self.mlp_group >= 1
+        if self.model_family == "mobile" and self.tie_mlp:
+            assert self.n_middle % self.mlp_group == 0, (
+                "Mobile MLP sharing은 모든 그룹의 깊이를 같게 유지한다: "
+                f"n_middle {self.n_middle} % mlp_group {self.mlp_group} != 0"
+            )
         if self.sparse34:
             assert self.micro_group % 4 == 0, "sparse34 는 group 이 4의 배수여야 함(3:4 블록)"
         assert self.repeat_where in ("front", "back", "even"), \
@@ -174,6 +181,7 @@ def _mobile125(seq, ckpt):
 
     return TMTConfig(
         model_family="mobile",
+        tokenizer_kind="mobilellm_32k",
 
         # MobileLLM 125M config.json
         vocab_size=32000,
@@ -346,6 +354,8 @@ def build_config(
             return dataclasses.replace(
                 cfg,
                 tie_mlp=True,
+                # 30개 layer를 6개씩 균등하게 묶어 5개 고유 MLP를 둔다.
+                # g8은 8+8+8+6의 비대칭 그룹이 되므로 R1 기본값으로 쓰지 않는다.
                 mlp_group=6,
             )
 

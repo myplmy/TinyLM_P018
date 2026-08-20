@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import time
 from pathlib import Path
 
@@ -19,6 +20,9 @@ from .. import paths   # HF_HOME 등 설정을 위해 먼저 import
 from ..config import VOCAB
 
 DATA_CACHE = paths.DATA_CACHE
+TINY_BPE = "tiny_bpe"
+MOBILELLM_32K = "mobilellm_32k"
+MOBILELLM_TOKENIZER_DIR = paths.ROOT / "MobileLLM" / "configs" / "125M"
 
 DATASETS = {
     # 이름: [(hf_id, config, split, text_key, 혼합 비율), ...]
@@ -34,8 +38,69 @@ DATASETS = {
 }
 
 
-def tokenizer_path(name, vocab_size=VOCAB):
+def tokenizer_path(name, vocab_size=VOCAB, tokenizer_kind=TINY_BPE):
+    if tokenizer_kind == MOBILELLM_32K:
+        return MOBILELLM_TOKENIZER_DIR / "tokenizer.model"
+    if tokenizer_kind != TINY_BPE:
+        raise ValueError(f"지원하지 않는 tokenizer_kind: {tokenizer_kind!r}")
     return DATA_CACHE / f"tok-{name}-{vocab_size}.json"
+
+
+def _cache_stem(name, tokenizer_kind):
+    """기존 tiny_bpe 캐시 이름은 유지하고 다른 tokenizer만 별도 namespace에 둔다."""
+    return name if tokenizer_kind == TINY_BPE else f"{name}__{tokenizer_kind}"
+
+
+def _tokenizer_sha256(tokenizer_kind, name, vocab_size):
+    path = tokenizer_path(name, vocab_size, tokenizer_kind)
+    if not path.exists():
+        return None
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_tokenizer(name, vocab_size=VOCAB, tokenizer_kind=TINY_BPE):
+    """학습/평가/생성에서 같은 tokenizer 객체를 만드는 단일 진입점."""
+    if tokenizer_kind == TINY_BPE:
+        return build_tokenizer(name, vocab_size)
+    if tokenizer_kind == MOBILELLM_32K:
+        if not MOBILELLM_TOKENIZER_DIR.exists():
+            raise FileNotFoundError(
+                f"공식 MobileLLM tokenizer 디렉터리가 없다: {MOBILELLM_TOKENIZER_DIR}"
+            )
+        from transformers import AutoTokenizer
+        tok = AutoTokenizer.from_pretrained(
+            str(MOBILELLM_TOKENIZER_DIR), local_files_only=True, use_fast=False,
+        )
+        if len(tok) != vocab_size:
+            raise ValueError(
+                f"MobileLLM tokenizer vocab={len(tok)} != model vocab={vocab_size}"
+            )
+        return tok
+    raise ValueError(f"지원하지 않는 tokenizer_kind: {tokenizer_kind!r}")
+
+
+def encode_ids(tok, text, tokenizer_kind=TINY_BPE):
+    """문서 본문만 encode한다. 문서 경계 EOS는 prepare()가 한 번만 붙인다."""
+    if tokenizer_kind == MOBILELLM_32K:
+        return list(tok.encode(text, add_special_tokens=False))
+    return list(tok.encode(text).ids)
+
+
+def decode_ids(tok, ids, tokenizer_kind=TINY_BPE):
+    if tokenizer_kind == MOBILELLM_32K:
+        return tok.decode(ids, skip_special_tokens=False)
+    return tok.decode(ids)
+
+
+def tokenizer_eos_id(tok, tokenizer_kind=TINY_BPE):
+    if tokenizer_kind == MOBILELLM_32K:
+        return int(tok.eos_token_id)
+    eos = tok.token_to_id("<eos>")
+    return int(eos if eos is not None else 2)
 
 
 def _stream(name, exhausted_cb=None):
@@ -81,7 +146,7 @@ def _stream(name, exhausted_cb=None):
 
 def build_tokenizer(name, vocab_size=VOCAB):
     from tokenizers import ByteLevelBPETokenizer
-    path = tokenizer_path(name, vocab_size)
+    path = tokenizer_path(name, vocab_size, TINY_BPE)
     if path.exists():
         from tokenizers import Tokenizer
         print(f"[tok] 캐시 사용 {path}")
@@ -103,16 +168,25 @@ def build_tokenizer(name, vocab_size=VOCAB):
     return tok
 
 
-def _find_reusable(name, n_tokens):
+def _find_reusable(name, n_tokens, tokenizer_kind=TINY_BPE, vocab_size=VOCAB,
+                   doc_filter=False):
     """같은 name, tokens>=n_tokens 캐시 중 가장 작은 것(상위 호환)을 고른다."""
     best = None
-    for d in sorted(DATA_CACHE.glob(f"{name}_*")):
+    stem = _cache_stem(name, tokenizer_kind)
+    for d in sorted(DATA_CACHE.glob(f"{stem}_*")):
         mp = d / "meta.json"
         if not (mp.exists() and (d / "train.bin").exists()):
             continue
         try:
             m = json.loads(mp.read_text())
         except Exception:
+            continue
+        cached_kind = m.get("tokenizer_kind", TINY_BPE)
+        if cached_kind != tokenizer_kind or int(m.get("vocab", VOCAB)) != int(vocab_size):
+            continue
+        # 기존 구현은 filtered/non-filtered 상위호환 캐시를 구분하지 않았다.
+        # 데이터 개입이 조용히 섞이는 실제 baseline 버그이므로 명시적으로 막는다.
+        if bool(m.get("doc_filter", False)) != bool(doc_filter):
             continue
         if m.get("tokens", 0) >= n_tokens:
             if best is None or m["tokens"] < best["tokens"]:
@@ -125,11 +199,12 @@ def _ensure_bpt(meta):
     if meta.get("bytes_per_token") or meta.get("data") == "synthetic":
         return meta
     try:
-        from tokenizers import Tokenizer
-        tok = Tokenizer.from_file(str(tokenizer_path(meta["data"])))
+        kind = meta.get("tokenizer_kind", TINY_BPE)
+        vocab_size = int(meta.get("vocab", VOCAB))
+        tok = load_tokenizer(meta["data"], vocab_size, kind)
         d = np.memmap(Path(meta["dir"]) / "val.bin", dtype=np.uint16, mode="r")
         ids = d[:min(len(d), 500_000)].tolist()
-        meta["bytes_per_token"] = len(tok.decode(ids).encode("utf-8")) / max(len(ids), 1)
+        meta["bytes_per_token"] = len(decode_ids(tok, ids, kind).encode("utf-8")) / max(len(ids), 1)
         mp = Path(meta["dir"]) / "meta.json"
         m2 = json.loads(mp.read_text()); m2["bytes_per_token"] = meta["bytes_per_token"]
         mp.write_text(json.dumps(m2, indent=2))
@@ -165,38 +240,48 @@ def spam_signature(text, min_chars=50_000):
 
 
 def prepare(name, n_tokens, val_frac=0.005, exact=False,
-            doc_filter=False, doc_min_chars=50_000):
+            doc_filter=False, doc_min_chars=50_000, *,
+            tokenizer_kind=TINY_BPE, vocab_size=VOCAB):
     """exact=True 면 상위호환(_find_reusable)을 쓰지 않고 **정확히 {name}_{n_tokens}** 캐시만 사용한다.
     (있으면 그 캐시, 없으면 정확히 그 크기로 신규 생성.) 토큰스윕처럼 '모든 예산이 같은 풀에서 샘플'해야
     할 때, 더 큰 캐시가 존재해도 특정 크기를 콕 집어 요청하는 용도."""
     n_tokens = int(n_tokens)
     DATA_CACHE.mkdir(parents=True, exist_ok=True)
+    stem = _cache_stem(name, tokenizer_kind)
 
     if name != "synthetic":
         if exact:
-            d = DATA_CACHE / (f"{name}_{n_tokens}" + ("_filtered" if doc_filter else ""))
+            d = DATA_CACHE / (f"{stem}_{n_tokens}" + ("_filtered" if doc_filter else ""))
             if (d / "meta.json").exists() and (d / "train.bin").exists():
                 m = json.loads((d / "meta.json").read_text()); m["dir"] = str(d)
-                print(f"[data] 정확 캐시 사용(exact, 상위호환 무시): {n_tokens/1e6:.1f}M ({name}) -> {d}")
-                return _ensure_bpt(m)
-            print(f"[data] 정확 캐시({name}_{n_tokens}) 없음 → 정확히 그 크기로 신규 생성(상위호환 무시)")
+                cached_kind = m.get("tokenizer_kind", TINY_BPE)
+                if cached_kind == tokenizer_kind and int(m.get("vocab", VOCAB)) == int(vocab_size):
+                    print(f"[data] 정확 캐시 사용(exact, 상위호환 무시): "
+                          f"{n_tokens/1e6:.1f}M ({name}, {tokenizer_kind}) -> {d}")
+                    return _ensure_bpt(m)
+                raise ValueError(
+                    f"캐시 tokenizer/vocab 불일치: {d}에는 {cached_kind}/"
+                    f"{m.get('vocab')}인데 요청은 {tokenizer_kind}/{vocab_size}"
+                )
+            print(f"[data] 정확 캐시({stem}_{n_tokens}) 없음 → 정확히 그 크기로 신규 생성(상위호환 무시)")
         else:
-            reuse = _find_reusable(name, n_tokens)
+            reuse = _find_reusable(name, n_tokens, tokenizer_kind, vocab_size, doc_filter)
             if reuse:
-                print(f"[data] 캐시 재사용: {reuse['tokens']/1e6:.1f}M 토큰 ({name}) "
+                print(f"[data] 캐시 재사용: {reuse['tokens']/1e6:.1f}M 토큰 "
+                      f"({name}, {tokenizer_kind}) "
                       f"-> {reuse['dir']}")
                 return _ensure_bpt(reuse)
 
     # ★P037 단계2: 필터를 켜면 **다른 디렉터리**에 쓴다. 기존 캐시로 학습한 런들이
     #   자기 로그와 계속 비교 가능해야 하므로 덮어쓰지 않는다(결과 018 §5).
     suffix = "_filtered" if doc_filter else ""
-    cache_dir = DATA_CACHE / f"{name}_{n_tokens}{suffix}"
+    cache_dir = DATA_CACHE / f"{stem}_{n_tokens}{suffix}"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     if name == "synthetic":
         print(f"[data] 합성 토큰 {n_tokens/1e6:.1f}M 생성 (동작 확인용, 캐시 안 함)")
         rng = np.random.default_rng(0)
-        vocab_eff = min(VOCAB, 4096)
+        vocab_eff = min(vocab_size, 4096)
         phrases = [rng.integers(0, vocab_eff, rng.integers(3, 12)) for _ in range(50_000)]
         out, n = [], 0
         while n < n_tokens:
@@ -204,8 +289,8 @@ def prepare(name, n_tokens, val_frac=0.005, exact=False,
             out.append(ph); n += len(ph)
         arr = np.concatenate(out)[:n_tokens].astype(np.uint16)
     else:
-        tok = build_tokenizer(name)
-        eos = tok.token_to_id("<eos>") or 2
+        tok = load_tokenizer(name, vocab_size, tokenizer_kind)
+        eos = tokenizer_eos_id(tok, tokenizer_kind)
         buf, total, total_bytes = [], 0, 0
         t0 = time.time()
         n_drop, n_drop_chars = 0, 0
@@ -228,7 +313,7 @@ def prepare(name, n_tokens, val_frac=0.005, exact=False,
                 n_drop += 1
                 n_drop_chars += len(text)
                 continue
-            ids = tok.encode(text).ids
+            ids = encode_ids(tok, text, tokenizer_kind)
             buf.append(np.array(ids + [eos], dtype=np.uint16))
             total += len(ids) + 1
             src_tok[src_i] += len(ids) + 1
@@ -273,7 +358,12 @@ def prepare(name, n_tokens, val_frac=0.005, exact=False,
     n_val = max(1, int(len(arr) * val_frac))
     arr[:-n_val].tofile(cache_dir / "train.bin")
     arr[-n_val:].tofile(cache_dir / "val.bin")
-    meta = {"data": name, "tokens": int(len(arr)), "vocab": VOCAB,
+    meta = {"data": name, "tokens": int(len(arr)), "vocab": int(vocab_size),
+            "tokenizer_kind": tokenizer_kind,
+            "tokenizer_sha256": _tokenizer_sha256(tokenizer_kind, name, vocab_size),
+            "tokenizer_source": str(tokenizer_path(name, vocab_size, tokenizer_kind)),
+            "tokenizer_add_special_tokens": False,
+            "append_eos_per_document": True,
             "train": int(len(arr) - n_val), "val": int(n_val), "dir": str(cache_dir)}
     if name != "synthetic":
         meta["bytes_per_token"] = total_bytes / max(total, 1)
@@ -282,10 +372,11 @@ def prepare(name, n_tokens, val_frac=0.005, exact=False,
         #   bpb 가 최대 1.9% 틀어지고, 그 크기는 bpb 분해능(0.008)의 3배다. → val 기준도 함께 남긴다.
         #   기존 필드는 **건드리지 않는다**(구 로그·구 문서와의 연속성).
         try:
-            from tokenizers import Tokenizer as _Tok
-            _t = _Tok.from_file(str(tokenizer_path(name)))
+            _t = tok
             _v = arr[-n_val:].tolist()
-            meta["bytes_per_token_val"] = len(_t.decode(_v).encode("utf-8")) / max(len(_v), 1)
+            meta["bytes_per_token_val"] = len(
+                decode_ids(_t, _v, tokenizer_kind).encode("utf-8")
+            ) / max(len(_v), 1)
             print(f"[bpb] bytes_per_token  스트림 {meta['bytes_per_token']:.4f} / "
                   f"★val {meta['bytes_per_token_val']:.4f} "
                   f"(차이 {100*(meta['bytes_per_token_val']/meta['bytes_per_token']-1):+.1f}%)")

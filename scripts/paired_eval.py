@@ -111,10 +111,15 @@ def main():
     ap.add_argument("--seq", type=int, default=1024)
     ap.add_argument("--micro-bs", type=int, default=8)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--exact-cache", action="store_true",
+                    help="상위호환 대신 정확한 토큰 크기 캐시를 사용")
+    ap.add_argument("--raw-differences", action="store_true",
+                    help="P018-R1: 고정 동등성 한계 없이 차이와 95% CI만 보고")
     a = ap.parse_args()
 
     import torch
     from tinylm import paths
+    from tinylm.config import build_config
     from tinylm.data import prepare
     from tinylm.infer.generate import load_model
 
@@ -128,7 +133,12 @@ def main():
     print("  ★크롭별 손실을 저장해 두 모델을 **같은 크롭 위에서** 뺀다.")
     print("  ⚠️ 이것은 **체크포인트 간** 비교다. 아키텍처 우열은 여기서 나오지 않는다.")
 
-    meta = prepare(a.data, n_tok)
+    expected_cfg = build_config(a.preset, "dense", a.seq, True)
+    meta = prepare(
+        a.data, n_tok, exact=a.exact_cache,
+        tokenizer_kind=expected_cfg.tokenizer_kind,
+        vocab_size=expected_cfg.vocab_size,
+    )
     per = {}
     for tag in a.models:
         ck = paths.resolve_ckpt(a.preset, a.data, a.tokens, tag)
@@ -136,6 +146,12 @@ def main():
             print(f"\n  [건너뜀] 체크포인트 없음: {ck.name}")
             continue
         model, cfg, _ = load_model(arch=_arch_of(tag), ckpt_path=str(ck), device=dev)
+        if (cfg.tokenizer_kind != expected_cfg.tokenizer_kind
+                or cfg.vocab_size != expected_cfg.vocab_size):
+            raise ValueError(
+                f"{tag} tokenizer/vocab={cfg.tokenizer_kind}/{cfg.vocab_size}, "
+                f"평가 캐시={expected_cfg.tokenizer_kind}/{expected_cfg.vocab_size}"
+            )
         losses, used = full_val_losses(model, cfg, meta["dir"], a.seq, a.micro_bs, dev)
         per[tag] = losses
         mean = sum(losses) / len(losses)
@@ -160,19 +176,24 @@ def main():
         print(f"  {tag:<16}{sum(v)/len(v):>10.4f}{statistics.stdev(v):>14.4f}")
 
     banner("★paired per-crop 비교 — 이것이 판정의 근거다")
-    print(f"  {'A vs B':<30}{'mean(A-B)':>12}{'SE':>9}{'t':>8}{'A 승률':>9}  판정")
+    print(f"  {'A vs B':<30}{'mean(A-B)':>12}{'95% CI':>20}{'t':>8}{'A 승률':>9}  판정")
     print("  " + "-" * 88)
     RES = 0.024                                    # 실무 분해능(2σ, CLAUDE.md)
     for x, y in itertools.combinations(per, 2):
         m, sd, se, t, nn, win = paired_stats(per[x], per[y])
+        ci = 1.96 * se
         # |t| ^> 2 면 "이 두 체크포인트는 다르다". 크기 판정은 분해능과 따로 본다.
-        if abs(t) < 2:
+        if a.raw_differences:
+            verdict = "원시 차이 추정(고정 margin 없음)"
+        elif abs(t) < 2:
             verdict = "구분 불가(체크포인트 수준에서도)"
         elif abs(m) < RES:
             verdict = "차이 유의하나 분해능(0.024) 미만 — 실무상 동급"
         else:
             verdict = "★유의하고 분해능 초과"
-        print(f"  {x + ' vs ' + y:<30}{m:>+12.4f}{se:>9.4f}{t:>8.2f}{win/nn:>8.1%}  {verdict}")
+        ci_text = f"[{m-ci:+.4f},{m+ci:+.4f}]"
+        print(f"  {x + ' vs ' + y:<30}{m:>+12.4f}{ci_text:>20}{t:>8.2f}"
+              f"{win/nn:>8.1%}  {verdict}")
 
     print("""
   읽는 법

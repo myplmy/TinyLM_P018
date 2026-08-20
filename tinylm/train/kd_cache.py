@@ -27,8 +27,12 @@ def cache_dir(base, topk):
 def build_kd_cache(base, teacher_path, data, n_tokens, steps, micro_bs, seq, accum,
                    topk=16, temp=2.0, device=None):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    meta = prepare(data, n_tokens)
-    teacher, _ = load_dense(teacher_path, device)
+    teacher, teacher_cfg = load_dense(teacher_path, device)
+    meta = prepare(
+        data, n_tokens,
+        tokenizer_kind=teacher_cfg.tokenizer_kind,
+        vocab_size=teacher_cfg.vocab_size,
+    )
     teacher.eval(); teacher.set_anneal(1.0)
     tr = Loader("train", micro_bs, seq, device, meta["dir"], seed=1234)
 
@@ -60,7 +64,10 @@ def build_kd_cache(base, teacher_path, data, n_tokens, steps, micro_bs, seq, acc
     (d / "meta.json").write_text(json.dumps(
         {"base": base, "data": data, "steps": steps, "micro_bs": micro_bs,
          "seq": seq, "accum": accum, "topk": topk, "total": total, "seed": 1234,
-         "temp": temp}, indent=2))
+         "temp": temp, "model_family": teacher_cfg.model_family,
+         "tokenizer_kind": teacher_cfg.tokenizer_kind,
+         "tokenizer_sha256": meta.get("tokenizer_sha256"),
+         "vocab": teacher_cfg.vocab_size}, indent=2))
     print(f"[kdcache] 완료: {pos} pos 저장")
 
 
@@ -70,6 +77,7 @@ class KdCacheReader:
     def __init__(self, base, topk, micro_bs, seq):
         d = cache_dir(base, topk)
         m = json.loads((d / "meta.json").read_text())
+        self.meta = m
         self.topk = topk
         self.n = micro_bs * seq
         total = m["total"]

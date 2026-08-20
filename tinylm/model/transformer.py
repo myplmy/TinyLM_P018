@@ -745,6 +745,109 @@ class MobileTransformer(nn.Module):
 
         self.apply(self._init_weights)
 
+    # --------------------------------------------------------
+    # Trainer/evaluator compatibility for the full-precision
+    # MobileLLM family.  These methods deliberately do not
+    # emulate P018 ternary behavior.
+    # --------------------------------------------------------
+
+    def set_anneal(self, value):
+        """Keep the shared trainer interface; MobileLLM has no quantization anneal."""
+        self.cfg.quant_anneal = float(value)
+
+    def clear_quant(self):
+        """No-op: MobileLLM weights are ordinary full-precision parameters."""
+
+    def freeze_quant(self):
+        """No-op: there is no quantized-weight refresh to freeze."""
+
+    def param_groups(self, lr, weight_decay=0.1):
+        """AdamW groups with the same LR in dense and tied R1 arms.
+
+        P018's tied-MLP group uses ``lr / sqrt(g)``.  Applying that rule here
+        would change both the architecture and the optimization intervention,
+        so MobileLLM R1 uses one common LR and only separates weight decay.
+        """
+        decay, nodecay = [], []
+        for name, param in self.named_parameters():
+            if not param.requires_grad:
+                continue
+            if param.dim() < 2 or name.endswith("bias") or "norm" in name:
+                nodecay.append(param)
+            else:
+                decay.append(param)
+        return [
+            {"params": decay, "lr": lr, "weight_decay": weight_decay},
+            {"params": nodecay, "lr": lr, "weight_decay": 0.0},
+        ]
+
+    def logical_parameter_count(self):
+        """Parameter uses in the unshared 30-layer graph (shared refs counted)."""
+        unique = sum(p.numel() for p in self.parameters())
+        if not self.cfg.tie_mlp:
+            return unique
+        per_mlp = 3 * self.cfg.dim * self.cfg.ffn_dim
+        return unique + (self.cfg.n_layers - self.cfg.n_mlp_groups) * per_mlp
+
+    def mem_breakdown(self, *_, **__):
+        """Static FP32 parameter storage; runtime peaks are measured separately."""
+        unique = sum(p.numel() for p in self.parameters())
+        logical = self.logical_parameter_count()
+        unique_mb = unique * 4 / 1024 ** 2
+        logical_mb = logical * 4 / 1024 ** 2
+        return {
+            "total_mb": unique_mb,
+            "packed_mb": unique_mb,  # legacy trainer key; format is explicitly fp32 below
+            "runtime_mb": unique_mb,
+            "runtime_copies": 1,
+            "int8_stored": False,
+            "latent_dropped": False,
+            "parts_mb": {"fp32_unique": unique_mb},
+            "params": {"unique": unique, "logical": logical, "total": unique},
+            "bpw_ternary": None,
+            "bpw_emb": 32,
+            "bpw_convention": "MobileLLM FP32 unique parameters (not ternary packed)",
+            "storage_format": "fp32",
+            "logical_mb_fp32": logical_mb,
+        }
+
+    def mem_report_all(self):
+        bd = self.mem_breakdown()
+        return {
+            "packed_mb": bd["packed_mb"],
+            "packed_mb_container": None,
+            "runtime_mb": bd["runtime_mb"],
+            "bpw_convention": bd["bpw_convention"],
+            "bpw_ternary": None,
+            "mem_parts_mb": bd["parts_mb"],
+            "mem_params": bd["params"],
+            "storage_format": bd["storage_format"],
+            "logical_mb_fp32": bd["logical_mb_fp32"],
+        }
+
+    def report(self, *_, **__):
+        cfg = self.cfg
+        bd = self.mem_breakdown()
+        unique = bd["params"]["unique"]
+        logical = bd["params"]["logical"]
+        group = cfg.mlp_group if cfg.tie_mlp else 1
+        lines = [
+            "=" * 72,
+            (f"MobileLLM-125M d={cfg.dim} ffn={cfg.ffn_dim} layers={cfg.n_layers} "
+             f"MLP g={group} vocab={cfg.vocab_size}"),
+            "=" * 72,
+            f"  logical parameters (dense graph) : {logical:,}",
+            f"  unique parameters                : {unique:,}",
+            f"  unique FP32 parameter storage    : {bd['runtime_mb']:.1f} MiB",
+            f"  attention modules                : {cfg.n_layers} independent",
+            (f"  MLP modules                      : {cfg.n_mlp_groups} unique, "
+             f"{group} consecutive uses each" if cfg.tie_mlp else
+             f"  MLP modules                      : {cfg.n_layers} independent"),
+            "  storage note                     : full precision; not P018 packed ternary",
+            "=" * 72,
+        ]
+        return "\n".join(lines)
+
     def _init_weights(self, module):
         std = self.cfg.initializer_range
     

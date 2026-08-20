@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from ..config import TMTConfig
-from ..model import TiedMLPTransformer
+from ..model import TiedMLPTransformer, build_model
 
 
 def _strip(sd):
@@ -74,10 +74,10 @@ def _svd_emb_init(student, teacher) -> bool:
 
 
 def load_dense(path, device):
-    """dense 체크포인트를 그 cfg로 복원한다(KD 교사 또는 초기화 소스)."""
+    """체크포인트를 저장된 cfg의 model family로 복원한다(KD 교사 또는 초기화 소스)."""
     st = torch.load(path, map_location=device)
     cfg = TMTConfig(**st["cfg"])
-    m = TiedMLPTransformer(cfg).to(device)
+    m = build_model(cfg).to(device)
     m.load_state_dict(_strip(st["model"]))
     return m, cfg
 
@@ -89,7 +89,14 @@ def init_from_dense(student: TiedMLPTransformer, dense_path, device):
       - prelude/coda MLP: 그대로 복사
       - 중간 MLP: dense의 mlp_group개 층을 평균 내어 공유 인스턴스에 넣음(RRT average-init)
     LoRA(있으면)는 U=0 초기화라 시작 시 항등 → 별도 처리 불필요."""
-    teacher, _ = load_dense(dense_path, device)
+    if student.cfg.model_family != "p018":
+        raise ValueError(
+            "MobileLLM dense->tied 초기화는 P018-R1의 optional 후속실험이며 아직 "
+            "통합되지 않았다. 주 실험 teacher/student는 반드시 처음부터 독립 학습한다."
+        )
+    teacher, teacher_cfg = load_dense(dense_path, device)
+    if teacher_cfg.model_family != "p018":
+        raise ValueError("init_from_dense는 현재 P018-family 체크포인트에만 지원된다.")
     g = student.cfg.mlp_group
 
     # ★2026-08-07(P046) — `--emb-rank` 로 E 를 바꾸면 임베딩 shape 이 교사와 다르다.

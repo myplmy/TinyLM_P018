@@ -13,7 +13,7 @@ import argparse
 
 from . import paths  # noqa: F401  (HF 리다이렉트 먼저)
 from .data import DATASETS
-from .config import PRESETS
+from .config import PRESETS, build_config
 
 
 def _tok(s):
@@ -167,6 +167,7 @@ def main():
 
     n_tok = _tok(a.tokens)
     preset, ckpt = _preset(a), not a.no_ckpt
+    command_cfg = build_config(preset, a.arch, a.seq, ckpt)
     tokstr = f"{n_tok//1_000_000}M" if n_tok >= 10**6 else str(n_tok)
     base = f"{preset}_{a.data}_{tokstr}"        # 스케일별 이름 프리픽스
     # ★부모 dense 는 프리셋을 넘어 찾는다(2026-08-01). `m100R1a/c` 는 `m100` 에서 한 필드만
@@ -180,7 +181,9 @@ def main():
     if a.cmd == "prepare":
         from .data import prepare
         prepare(a.data, pool_tok if pool_tok else n_tok, exact=a.exact_cache,
-                doc_filter=a.doc_filter, doc_min_chars=a.doc_min_chars)
+                doc_filter=a.doc_filter, doc_min_chars=a.doc_min_chars,
+                tokenizer_kind=command_cfg.tokenizer_kind,
+                vocab_size=command_cfg.vocab_size)
 
     elif a.cmd == "kdcache":
         from .train.kd_cache import build_kd_cache
@@ -264,12 +267,19 @@ def main():
         from .data import prepare, Loader
         from .eval import evaluate
         from .infer import load_model
-        meta = prepare(a.data, n_tok)
         ckp = a.ckpt_path or str(paths.resolve_ckpt(preset, a.data, tokstr,
                                                     a.tag if a.tag else a.arch))
         model, cfg, device = load_model(a.arch, ckp)
+        meta = prepare(a.data, pool_tok if pool_tok else n_tok, exact=a.exact_cache,
+                       doc_filter=a.doc_filter, doc_min_chars=a.doc_min_chars,
+                       tokenizer_kind=cfg.tokenizer_kind, vocab_size=cfg.vocab_size)
         # ★P031 — 체크포인트의 cfg 위에 **추론 전용** 설정만 덮어쓴다. 가중치는 그대로다.
         if a.infer_repeat != 1.0 or a.repeat_kv_reuse:
+            if cfg.model_family == "mobile":
+                raise ValueError(
+                    "--infer-repeat/--repeat-kv-reuse는 P018 middle-block 스케줄 전용이며 "
+                    "MobileLLM에는 아직 지원되지 않는다."
+                )
             cfg.infer_repeat = a.infer_repeat
             cfg.repeat_where = a.repeat_where
             cfg.repeat_kv_reuse = a.repeat_kv_reuse
@@ -287,6 +297,11 @@ def main():
         compare(base, a.tag, a.vs)
 
     elif a.cmd == "lrfind":
+        if command_cfg.model_family == "mobile":
+            raise ValueError(
+                "현재 lrfind 구현은 P018 model class 전용이다. MobileLLM R1의 LR은 "
+                "사전등록 protocol에서 정하고 별도 pilot으로 검증해야 한다."
+            )
         from .train import lr_find
         grid_lrs = tuple(float(x) for x in a.lrs.split(","))
         lr_find(method=a.method, preset=preset, arch=a.arch, data=a.data,
@@ -300,11 +315,10 @@ def main():
             p.error("generate 에는 --prompt 가 필요합니다")
         gckp = a.ckpt_path or str(paths.RUNS / "ckpt" / (f"{base}_{a.tag}.pt" if a.tag else f"{base}_{a.arch}.pt"))
         if a.check_cache:
-            from tokenizers import Tokenizer
-            from .data import tokenizer_path
+            from .data import load_tokenizer
             from .infer import load_model, check_cache_equivalence
             m, cfg_, dev = load_model(a.arch, gckp)
-            tk = Tokenizer.from_file(str(tokenizer_path(a.data)))
+            tk = load_tokenizer(a.data, cfg_.vocab_size, cfg_.tokenizer_kind)
             ok = check_cache_equivalence(m, cfg_, tk, a.prompt, max_new=a.max_new, device=dev)
             raise SystemExit(0 if ok else 1)
         generate(a.prompt, arch=a.arch, data=a.data, max_new=a.max_new,

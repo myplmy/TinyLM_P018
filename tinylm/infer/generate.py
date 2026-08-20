@@ -15,8 +15,8 @@ import torch.nn.functional as F
 
 from .. import paths
 from ..config import TMTConfig
-from ..model import TiedMLPTransformer
-from ..data import tokenizer_path
+from ..model import build_model
+from ..data import decode_ids, encode_ids, load_tokenizer, tokenizer_eos_id
 
 CKPT = paths.RUNS / "ckpt"
 
@@ -39,7 +39,12 @@ def load_model(arch="tied", ckpt_path=None, device=None, drop_latent=False, int8
     path = Path(ckpt_path) if ckpt_path else CKPT / f"{arch}.pt"
     st = torch.load(path, map_location=device)
     cfg = TMTConfig(**st["cfg"])
-    model = TiedMLPTransformer(cfg).to(device)
+    if cfg.model_family == "mobile" and (drop_latent or int8_store or unpack_cache):
+        raise ValueError(
+            "drop_latent/int8_store/unpack_cache는 P018 삼진 모델 전용이며 "
+            "MobileLLM 체크포인트에는 적용할 수 없다."
+        )
+    model = build_model(cfg).to(device)
     model.load_state_dict(_strip(st["model"]))
     model.set_anneal(1.0)                       # 배포 상태(완전 삼진)에서 추론
     model.eval()
@@ -85,10 +90,11 @@ def sample(model, cfg, tok, prompt, max_new=100, temperature=0.8, top_k=40, devi
     """
     device = device or next(model.parameters()).device
     if eos_id is None:
-        eos_id = tok.token_to_id("<eos>")
-        if eos_id is None:
+        try:
+            eos_id = tokenizer_eos_id(tok, cfg.tokenizer_kind)
+        except (AttributeError, TypeError, ValueError):
             eos_id, stop_at_eos = -1, False
-    ids = tok.encode(prompt).ids
+    ids = encode_ids(tok, prompt, cfg.tokenizer_kind)
     x = torch.tensor([ids], dtype=torch.long, device=device)
     dev_type = device if isinstance(device, str) else device.type
     ac = dict(dtype=torch.bfloat16, enabled=(dev_type == "cuda"))
@@ -112,14 +118,13 @@ def sample(model, cfg, tok, prompt, max_new=100, temperature=0.8, top_k=40, devi
         x = torch.cat([x, nxt], dim=1)
         if stop_at_eos and int(nxt.item()) == eos_id:
             break
-    return tok.decode(x[0].tolist())
+    return decode_ids(tok, x[0].tolist(), cfg.tokenizer_kind)
 
 
 def generate(prompt, arch="tied", data="ko-en", max_new=100, temperature=0.8,
              top_k=40, ckpt_path=None, device=None, use_cache=True, stop_at_eos=True):
-    from tokenizers import Tokenizer
     model, cfg, device = load_model(arch, ckpt_path, device)
-    tok = Tokenizer.from_file(str(tokenizer_path(data)))
+    tok = load_tokenizer(data, cfg.vocab_size, cfg.tokenizer_kind)
     text = sample(model, cfg, tok, prompt, max_new=max_new, temperature=temperature,
                   top_k=top_k, device=device, use_cache=use_cache, stop_at_eos=stop_at_eos)
     print(text)

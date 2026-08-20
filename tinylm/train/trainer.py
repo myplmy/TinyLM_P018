@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 from .. import paths
 from ..config import build_config
-from ..model import TiedMLPTransformer
+from ..model import build_model
 from ..data import prepare, Loader
 from ..eval import evaluate
 from .init_utils import init_from_dense, load_dense
@@ -70,14 +70,37 @@ def train(preset, arch, data, n_tokens, steps, micro_bs, seq, accum, lr, eval_ev
             pass
     CKPT.mkdir(parents=True, exist_ok=True); LOGS.mkdir(parents=True, exist_ok=True)
 
+    cfg = build_config(preset, arch, seq, ckpt)
+    if cfg.model_family == "mobile":
+        unsupported = []
+        if init_from:
+            unsupported.append("--init-from (optional Dense->Tied 후속실험은 아직 미통합)")
+        if micro_group is not None:
+            unsupported.append("--micro-group")
+        if emb_rank is not None:
+            unsupported.append("--emb-rank")
+        if lora_rank or mlp_film or lora_decay:
+            unsupported.append("--lora-rank/--mlp-film/--lora-decay")
+        if center_weights or sparse34 or use_ternary_kernel or ternary_kernel_triton:
+            unsupported.append("P018 ternary/sparse/centering options")
+        if arenas:
+            unsupported.append("--arenas")
+        if unsupported:
+            raise ValueError(
+                "mobile125는 full-precision MobileLLM R1 경로다. 조용히 무시할 수 없는 "
+                "P018 전용 옵션: " + ", ".join(unsupported)
+            )
+
     # 데이터 풀(캐시)은 pool_tokens 로 학습길이·이름과 분리 가능. 미지정이면 기존처럼 n_tokens.
     #   토큰스윕(P007 클린): 모든 예산을 동일 600M 풀에서 샘플 → pool_tokens=600M, exact_cache=True.
     # ★2026-08-06 — `doc_filter` 를 학습 경로에도 전달한다. 종전에는 `prepare` 서브커맨드만
     #   이 인자를 받아, **필터 캐시를 만들 수는 있는데 그것으로 학습할 방법이 없었다**
     #   (결과 023 §2 의 "분리해서 쓰는 것과 분리한 것을 읽는 것은 별개 작업" 과 같은 계열).
-    meta = prepare(data, int(pool_tokens) if pool_tokens else n_tokens, exact=exact_cache,
-                   doc_filter=doc_filter, doc_min_chars=doc_min_chars)
-    cfg = build_config(preset, arch, seq, ckpt)
+    meta = prepare(
+        data, int(pool_tokens) if pool_tokens else n_tokens, exact=exact_cache,
+        doc_filter=doc_filter, doc_min_chars=doc_min_chars,
+        tokenizer_kind=cfg.tokenizer_kind, vocab_size=cfg.vocab_size,
+    )
     if mlp_group and arch == "tied":            # g 스윕용 오버라이드(P003)
         assert cfg.n_middle % mlp_group == 0, f"n_middle {cfg.n_middle} % g {mlp_group} != 0"
         cfg.mlp_group = mlp_group
@@ -116,14 +139,26 @@ def train(preset, arch, data, n_tokens, steps, micro_bs, seq, accum, lr, eval_ev
             raise SystemExit("[sparse34] 커스텀 삼진 커널 경로는 3:4 미구현 — "
                              "--sparse34 는 표준(F.linear) 경로에서만 사용하세요(커널 병용 금지).")
         print("[sparse34] 3:4 희소 삼진(1.25bpw) 활성 — 각 4-블록 |w|최소 1개 0강제")
-    model = TiedMLPTransformer(cfg).to(device)
+    model = build_model(cfg).to(device)
 
     if init_from:
         init_from_dense(model, init_from, device)
 
     teacher = None
+    teacher_cfg = None
     if kd and not kd_cache:
-        teacher, _ = load_dense(kd if isinstance(kd, str) else CKPT / "dense.pt", device)
+        teacher, teacher_cfg = load_dense(
+            kd if isinstance(kd, str) else CKPT / "dense.pt", device
+        )
+        if teacher_cfg.vocab_size != cfg.vocab_size:
+            raise ValueError(
+                f"KD vocab 불일치: student={cfg.vocab_size}, teacher={teacher_cfg.vocab_size}"
+            )
+        if teacher_cfg.tokenizer_kind != cfg.tokenizer_kind:
+            raise ValueError(
+                "KD tokenizer 불일치: "
+                f"student={cfg.tokenizer_kind}, teacher={teacher_cfg.tokenizer_kind}"
+            )
         teacher.eval(); teacher.set_anneal(1.0)
         for p in teacher.parameters():
             p.requires_grad_(False)
@@ -136,6 +171,11 @@ def train(preset, arch, data, n_tokens, steps, micro_bs, seq, accum, lr, eval_ev
         #   ⚠️ **기본 on 이 아니다.** `--kd-teacher-infer` 로 켠다 — 기본 off = 비트 동일.
         #     결과가 달라지면 그건 구현 버그이고, P042 단계0 이 그것만 검사한다.
         if kd_teacher_infer:
+            if teacher_cfg.model_family == "mobile":
+                raise ValueError(
+                    "--kd-teacher-infer는 P018 삼진 교사용이다. MobileLLM 교사는 이미 "
+                    "일반 FP 추론 경로이며 drop_latent 대상이 아니다."
+                )
             teacher.freeze_quant()
             teacher.drop_latent()
             print(f"[kd] ★교사 추론 모드(P042): freeze_quant + drop_latent 적용 — "
@@ -248,6 +288,14 @@ def train(preset, arch, data, n_tokens, steps, micro_bs, seq, accum, lr, eval_ev
     if kd_cache:
         from .kd_cache import KdCacheReader
         kd_reader = KdCacheReader(_base, kd_topk, micro_bs, seq)
+        cache_kind = kd_reader.meta.get("tokenizer_kind", "tiny_bpe")
+        cache_vocab = int(kd_reader.meta.get("vocab", cfg.vocab_size))
+        if cache_kind != cfg.tokenizer_kind or cache_vocab != cfg.vocab_size:
+            raise ValueError(
+                "KD cache tokenizer/vocab 불일치: "
+                f"cache={cache_kind}/{cache_vocab}, student="
+                f"{cfg.tokenizer_kind}/{cfg.vocab_size}"
+            )
         kd_reader.seek_step(start, accum)
         print(f"[kd-cache] 오프라인 KD 캐시 사용 (top{kd_topk}, 교사 forward 없음)")
 
@@ -441,8 +489,16 @@ def train(preset, arch, data, n_tokens, steps, micro_bs, seq, accum, lr, eval_ev
         backup = _swap_in_ema(); fe = evaluate(model, va, 100, device); _swap_out(backup)
         final["val_ema"], final["ppl_ema"] = fe["val_loss"], fe["ppl"]
     n_par = sum(p.numel() for p in model.parameters())
+    logical_par = (model.logical_parameter_count()
+                   if hasattr(model, "logical_parameter_count") else n_par)
     import os as _os
-    res = {"arch": arch, "preset": preset, "data": data, "params": n_par, "steps": steps,
+    res = {"arch": arch, "preset": preset, "data": data,
+           "model_family": cfg.model_family,
+           "tokenizer_kind": cfg.tokenizer_kind,
+           "tokenizer_sha256": meta.get("tokenizer_sha256"),
+           "data_cache_dir": meta.get("dir"),
+           "params": n_par, "unique_params": n_par, "logical_params": logical_par,
+           "steps": steps,
            "lr": lr, "seq": seq,
            # ★런 재구성용 조건(이게 없으면 로그만 보고 실험을 재현·중복판정할 수 없다).
            #   docs/EXPERIMENT_BASELINES.md 레지스트리와 exp-preflight 스킬이 이 필드를 읽는다.
@@ -463,13 +519,18 @@ def train(preset, arch, data, n_tokens, steps, micro_bs, seq, accum, lr, eval_ev
                             if hasattr(opt, "state_bytes") else None),
            "grad_ckpt": bool(ckpt),
            "kd_teacher": (_os.path.basename(str(kd)) if kd else None),
+           "kd_teacher_model_family": (teacher_cfg.model_family if teacher_cfg else None),
+           "kd_teacher_unique_params": (
+               sum(p.numel() for p in teacher.parameters()) if teacher is not None else None
+           ),
            "init_from_src": (_os.path.basename(str(init_from)) if init_from else None),
            "tokens": steps * eff, "final": final, "best_val": best_val, "best_step": best_step,
            "history": hist, "grad_max": gmax, "grad_peak_warmup": gpeak, "n_skip": n_skip,
            "sched": sched, "ema": ema, "kd": bool(kd), "init_from": bool(init_from),
            "kd_every": kd_every, "kd_dynamic": bool(kd_dynamic), "kd_fwd_steps": n_kd_fwd,
            "lora_rank": lora_rank, "wall_sec": time.time() - t0,
-           "sparse34": bool(sparse34), "bpw": 1.25 if sparse34 else 1.95,
+           "sparse34": bool(sparse34),
+           "bpw": (None if cfg.model_family == "mobile" else (1.25 if sparse34 else 1.95)),
            "anneal_end": anneal_end, "decay_frac": decay_frac,    # (P026) 스케줄 정렬 기록
            "anneal_shape": anneal_shape, "anneal_start": a0,      # (P035) 어닐 형태·시작점
            "lora_decay": float(lora_decay),                       # (P008) LoRA 스케일 어닐
